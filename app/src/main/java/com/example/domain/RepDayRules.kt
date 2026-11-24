@@ -646,6 +646,29 @@ object RepDayRules {
         }
     }
 
+    /**
+     * Target line under a set row in the active workout.
+     *
+     * Reps are always shown alongside an effort target ("Target 8-10 reps · RPE 8"). On their own,
+     * reps are shown only when they differ from the exercise's rep range, which the header shows.
+     * Returns null when there's nothing to add.
+     */
+    fun formatActiveSetTargetCaption(
+        setRepRange: String?,
+        setTargetRpe: String?,
+        exerciseRepRange: String?,
+        scale: EffortScale
+    ): String? {
+        val reps = setRepRange?.trim()?.takeIf { it.isNotEmpty() }
+        val effort = formatEffortTarget(setTargetRpe, scale)
+        return when {
+            reps != null && effort != null -> "Target $reps reps · $effort"
+            reps != null && reps != exerciseRepRange?.trim() -> "Target $reps reps"
+            reps == null && effort != null -> "Lift to $effort"
+            else -> null
+        }
+    }
+
     fun formatSetTargetLabel(
         repRange: String?,
         targetRpe: String?,
