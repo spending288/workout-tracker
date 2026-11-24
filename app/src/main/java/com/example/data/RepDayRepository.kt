@@ -1,6 +1,7 @@
 package com.example.data
 
 import android.util.Log
+import androidx.room.withTransaction
 import com.example.data.local.CompletedWorkoutEntity
 import com.example.data.local.CustomExerciseEntity
 import com.example.data.local.RepDayDataStore
@@ -360,25 +361,31 @@ class RepDayRepository(
     }
 
     override suspend fun applyBackupImport(plan: BackupImportPlan) {
+        // All database changes succeed or fail together, so a crash mid-import can't leave
+        // the database empty or half-replaced. DataStore writes run after the commit.
+        db.withTransaction {
+            if (plan.mode == BackupImportMode.REPLACE) {
+                db.routineDao().deleteAll()
+                db.trainingPlanDao().deleteAll()
+                db.completedWorkoutDao().deleteAll()
+                db.customExerciseDao().deleteAll()
+            }
+            if (plan.routinesToSave.isNotEmpty()) {
+                db.routineDao().upsertAll(plan.routinesToSave.map { it.toEntity() })
+            }
+            if (plan.plansToSave.isNotEmpty()) {
+                db.trainingPlanDao().upsertAll(plan.plansToSave.map { it.toEntity() })
+            }
+            if (plan.historyToSave.isNotEmpty()) {
+                db.completedWorkoutDao().upsertAll(plan.historyToSave.map { it.toEntity() })
+            }
+            if (plan.customExercisesToSave.isNotEmpty()) {
+                registerCustomExercises(plan.customExercisesToSave)
+            }
+        }
         if (plan.mode == BackupImportMode.REPLACE) {
-            db.routineDao().deleteAll()
-            db.trainingPlanDao().deleteAll()
-            db.completedWorkoutDao().deleteAll()
-            db.customExerciseDao().deleteAll()
             dataStore.saveActiveWorkout(null)
             dataStore.saveRestTimer(RestTimerSnapshot())
-        }
-        if (plan.routinesToSave.isNotEmpty()) {
-            db.routineDao().upsertAll(plan.routinesToSave.map { it.toEntity() })
-        }
-        if (plan.plansToSave.isNotEmpty()) {
-            db.trainingPlanDao().upsertAll(plan.plansToSave.map { it.toEntity() })
-        }
-        if (plan.historyToSave.isNotEmpty()) {
-            db.completedWorkoutDao().upsertAll(plan.historyToSave.map { it.toEntity() })
-        }
-        if (plan.customExercisesToSave.isNotEmpty()) {
-            registerCustomExercises(plan.customExercisesToSave)
         }
         if (plan.settingsToSave != null) {
             dataStore.saveSettings(plan.settingsToSave)
@@ -386,10 +393,12 @@ class RepDayRepository(
     }
 
     override suspend fun eraseAllData() {
-        db.routineDao().deleteAll()
-        db.trainingPlanDao().deleteAll()
-        db.completedWorkoutDao().deleteAll()
-        db.customExerciseDao().deleteAll()
+        db.withTransaction {
+            db.routineDao().deleteAll()
+            db.trainingPlanDao().deleteAll()
+            db.completedWorkoutDao().deleteAll()
+            db.customExerciseDao().deleteAll()
+        }
         dataStore.saveActiveWorkout(null)
         dataStore.saveRestTimer(RestTimerSnapshot())
         dataStore.saveSettings(SeedData.defaultSettings())
