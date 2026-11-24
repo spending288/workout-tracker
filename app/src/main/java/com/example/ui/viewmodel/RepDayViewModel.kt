@@ -911,7 +911,6 @@ class RepDayViewModel(
                 pendingEffortPrompt = null
             )
         }
-        platform.startOrSyncWorkoutService()
 
         viewModelScope.launch {
             activeWorkoutPersistMutex.withLock {
@@ -923,6 +922,9 @@ class RepDayViewModel(
                 repository.saveActiveWorkout(_activeWorkout.value)
                 lastPersistedWorkoutVersion = maxOf(targetVersion, latestVersion)
             }
+            // Start (or re-sync) the service only after the new workout is on disk, so the
+            // service's first read sees it. The service also tolerates an early empty read.
+            platform.startOrSyncWorkoutService()
             maybePromptNotificationPermissionOnWorkoutStart()
         }
     }
@@ -1306,7 +1308,7 @@ class RepDayViewModel(
         val durationSec = ((nowMs - finalActiveSnapshot.startedAt) / 1000L).toInt().coerceAtLeast(1)
         val totalVol = RepDayRules.computeCompletedVolume(completedExercises)
         val completed = CompletedWorkout(
-            id = RepDayRules.newId("cw"),
+            id = RepDayRules.completedWorkoutIdForActive(finalActiveSnapshot.id),
             routineId = resolvedRoutineId,
             routineName = resolvedRoutineName,
             startedAt = RepDayRules.formatIso(finalActiveSnapshot.startedAt),

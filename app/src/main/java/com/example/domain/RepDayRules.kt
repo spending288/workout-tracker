@@ -7,6 +7,7 @@ import com.example.data.model.CompletedExercise
 import com.example.data.model.CompletedSet
 import com.example.data.model.CompletedWorkout
 import com.example.data.model.EffortScale
+import com.example.data.model.PauseSpan
 import com.example.data.model.PlanBlock
 import com.example.data.model.PlannedSet
 import com.example.data.model.PlateCalculatorSettings
