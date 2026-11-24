@@ -1,0 +1,518 @@
+RepDay
+Gemini
+Gemini 4 Neon
+Ran for 0s
+Checkpoint
+make this button smaller and possibly to the left of the existing 4 buttons at top
+Apply style changes to the selected element(s).
+button
+Gemini 4 Neon
+Ran for 57s
+
+Action history
+Here are key actions taken for the app:
+
+Edited 1 file
+src/components/RoutinesView.tsx
+Built
+Moved the Start Workout button to a compact Start button positioned immediately to the left of the four top-right action buttons (History, Duplicate, Edit, Delete) on routine cards, removing the full-width bottom button and letting the focus, description, and summary metadata span the full width of the card cleanly.
+Checkpoint
+keep the start button where it is, hide the other 4 into an expandable menu
+Apply style changes to the selected element(s).
+5 components
+Gemini 4 Neon
+Ran for 45s
+
+Action history
+Here are key actions taken for the app:
+
+Edited 1 file
+src/components/RoutinesView.tsx
+Built
+Kept the compact Start button in place at the top right of the routine card and collapsed the other four actions (History, Duplicate, Edit, and Delete) into an expandable More (⋮) menu right next to it, with automatic close on outside click or Escape.
+Checkpoint
+Similar to the Routines, please make this collapsible and move the four buttons (restart, copy, edit, delete) to an explandable menu
+Apply style changes to the selected element(s).
+article
+Gemini 4 Neon
+Ran for 1m 13s
+
+Action history
+Here are key actions taken for the app:
+
+Edited 1 file
+src/components/PlansView.tsx
+Built
+Updated the plan card to match the Routines card pattern:
+Expandable Actions Menu: Kept the Active / Set Active toggle visible at the top right and moved Restart from Week 1, Duplicate, Edit, and Delete into an expandable More (⋮) menu right next to it (with outside-click and Escape dismissal).
+Collapsible Blocks & Workouts: Added a Show blocks & workouts / Hide blocks & workouts (or Show workouts / Hide workouts) toggle below the plan overview so cards start compact and expand on demand to display each block and scheduled workout.
+Checkpoint
+There's an issue when I'm on a free text field and I drag to highlight text, if I deselect outside of a popup window, it assumes I want to exit.
+Gemini 4 Neon
+Ran for 1m 49s
+
+Action history
+Here are key actions taken for the app:
+
+Edited 8 files
+src/utils/useBackdropDismiss.ts
+src/components/RoutineEditorSheet.tsx
+src/components/PlanEditorSheet.tsx
+src/components/SettingsSheet.tsx
+src/components/ConfirmDialog.tsx
+src/components/SetTagRpeSheet.tsx
+src/components/PlateCalculatorModal.tsx
+src/components/ActiveWorkoutView.tsx
+Built
+Fixed the accidental popup dismissal when highlighting text:
+Backdrop Drag Protection Across All Modals & Sheets: All dialogs and sheets (Routine Editor, Plan Editor, Preferences, Plate Calculator, Set Tag/RPE sheet, Confirm Dialogs, and Active Workout Add/Swap/Finish sheets) now only dismiss on backdrop click when the press both starts and ends directly on the backdrop.
+Dragging inside any text field or textarea and releasing outside the modal window will no longer trigger an exit or unsaved-changes prompt.
+Checkpoint
+When an unknown / custom exercise is added, it should be added to the library. Please look at all the pre-defined exercise names and then all the custom names in the existing workouts, and add the custom names to the library, and ensure they will be added going forward.
+Gemini 4 Neon
+Ran for 3m 3s
+
+Action history
+Here are key actions taken for the app:
+
+Edited 4 files
+src/utils/storage.ts
+src/components/RoutineEditorSheet.tsx
+src/components/ActiveWorkoutView.tsx
+src/App.tsx
+Built
+Custom exercises are now automatically saved to your persistent exercise library and backfilled from all existing workouts:
+Automatic Backfill from Existing Workouts: On app load, every saved routine, completed history session, and active workout is scanned against the 53 pre-defined exercises. Any custom exercise names not already in the built-in list are automatically added to your persisted library (case-insensitively deduplicated with normalized spacing).
+Auto-Save Going Forward: Any new/unknown exercise is automatically added to your library when you:
+Save a new or edited routine
+Add an exercise mid-workout
+Swap to a custom exercise during a live workout
+Finish and log a workout
+Available Across All Pickers: Your custom exercises are surfaced alongside pre-defined movements (prioritized first, with prefix-first search ranking) in the Routine Editor autocomplete, Live Workout Add Exercise quick-pick, and Swap Exercise suggestions, along with a subtle hint when typing a brand-new exercise that it will be saved to your library.
+Checkpoint
+Write a complete, detailed functional and UI specification for this app—including all screens, features, user flows, and Gemini prompts—so I can rebuild it as a native Android app.
+Gemini 4 Neon
+Ran for 3m 7s
+
+Action history
+RepDay — Complete Functional & UI Specification (Android Rebuild Blueprint)
+1. Product Overview & Architecture
+RepDay is an offline, local-first Material 3 strength-training and workout-logging application built for fast, one-handed gym-floor logging.
+Core Principles
+Local-First & Zero Auth: All routines, training plans, active sessions, completed history, preferences, and the custom exercise library are stored strictly on-device (Android equivalent: Room SQLite for structured entities + Jetpack DataStore for settings/theme/active-session snapshot). No backend or account login is required.
+One-Handed Gym Ergonomics: Minimum 44dp–48dp touch targets across all interactive controls, monospace tabular numerals (fontFeatureSettings = "tnum") for all weights/reps/timers, collapsed-by-default exercise cards during live workouts with automatic advance, and single-tap previous-set auto-fill.
+Zero AI / Gemini Dependency: See Section 8 — despite @google/genai existing in the template package.json, the application makes zero Gemini API calls and contains zero LLM prompts. Every feature (autocomplete, exercise swap scoring, plate math, plan progression, theme contrast calculation) is 100% deterministic and offline.
+2. Design System & Dynamic Theming Engine
+2.1 Typography
+Role	Font Family	Weights	Usage
+Display / Headings	Plus Jakarta Sans	600, 700, 800	Screen titles (24–30sp), card titles (18–24sp), dialog headings
+Body / UI	DM Sans	400, 500, 600, 700	Labels, descriptions, buttons, subtitles
+Data / Numerals	JetBrains Mono (Tabular)	500, 600, 700	Weights, reps, RPE, timers, volume, set counts, hex/RGB values
+2.2 Appearance Modes
+Modes: dark (default), light, system (follows Android isSystemInDarkTheme()).
+Each theme preset defines independent Dark and Light 4-color base palettes (canvas, surface, accent, text). Users can also store separate custom palettes for Dark (customDark) and Light (customLight).
+2.3 Built-in High-Contrast Color Presets
+Preset ID	Display Name	Subtitle	Dark (canvas / surface / accent / text)	Light (canvas / surface / accent / text)
+obsidian-gold (default)	Obsidian Gold	Black, gold, silver & crisp white	#0B0C0E / #15171C / #E8BD4A / #FAFAFB	#F5F5F3 / #FFFFFF / #8F6508 / #111317
+volt-iron	Volt Iron	Charcoal, athletic lime & slate	#0E1113 / #1A2024 / #C8F550 / #F2F5F7	#F4F6F4 / #FFFFFF / #3B6600 / #121614
+crimson-steel	Crimson Steel	Carbon black, red & brushed silver	#0D0E10 / #181A1E / #FF6B6B / #F8F9FA	#F7F5F5 / #FFFFFF / #B91C28 / #141213
+cobalt-titanium	Cobalt Titanium	Deep navy slate, blue & titanium	#0B0F15 / #151C26 / #63ADFF / #F4F7FB	#F3F6FB / #FFFFFF / #1558B0 / #0F1724
+emerald-carbon	Emerald Carbon	Matte black, jade green & pearl	#0A0F0D / #141D19 / #3CE09B / #F2F7F5	#F3F8F6 / #FFFFFF / #0B7549 / #0F1A15
+monochrome-stark	Stark Silver	Pure black, silver & stark white	#08080A / #151518 / #F4F4F6 / #FAFAFC	#F4F4F6 / #FFFFFF / #141418 / #111114
+2.4 Dynamic Token Derivation Algorithm
+From the 4 active base colors (canvas, surface, accent, text), compute isDarkCanvas = relativeLuminance(canvas) < 0.25 (WCAG 2.1 sRGB luminance), then derive all semantic tokens via linear RGB interpolation mix(a, b, weightB):
+surfaceAlt: Dark mix(canvas, surface, 0.55) | Light mix(surface, canvas, 0.65)
+surfaceElevated: Dark mix(surface, #FFFFFF, 0.07) | Light mix(surface, #000000, 0.05)
+border: mix(surface, text, 0.14)
+borderStrong: mix(surface, text, 0.24)
+textSecondary: Dark mix(text, surface, 0.26) | Light mix(text, surface, 0.32)
+textMuted: Dark mix(text, surface, 0.44) | Light mix(text, surface, 0.48)
+accentFg: Whichever of #0E1013 or #FFFFFF has the higher WCAG contrast ratio against accent
+accentHover: Dark mix(accent, #FFFFFF, 0.14) | Light mix(accent, #000000, 0.12)
+accentSoft: Dark mix(surface, accent, 0.18) | Light mix(surface, accent, 0.14)
+accentSoftFg: Dark mix(accent, #FFFFFF, 0.22) | Light mix(accent, #000000, 0.28)
+Success (ok): Dark (ok=#7CE8A5, okSurface=mix(surface,#1E824C,0.22), okInput=mix(surface,#1E824C,0.34), okFg=#E7FBEF); Light (ok=#157A44, okSurface=mix(surface,#157A44,0.11), okInput=mix(surface,#157A44,0.18), okFg=#0E4E2B)
+Danger: Dark (danger=#FF8A80, dangerSurface=mix(surface,#D32F2F,0.24)); Light (danger=#C62828, dangerSurface=mix(surface,#C62828,0.10))
+2.5 Set Tag Color Semantics
+Tag / Subtag	Short Code	Label	Light (text / bg / border)	Dark (text / bg / border)
+warmup	W	Warm-up	#8C5B00 / #FBF1D4 / #C9911A@50%	#F5C451 / #332910 / #F5C451@60%
+working	WK	Working	accentSoftFg / accentSoft / accent@60%	accent / accentSoft / accent@60%
+working + top	TOP	Working · Top	accentSoftFg / accentSoft / accent@75%	accent / accentSoft / accent@75%
+working + backoff	BO	Working · Backoff	#136B3D / #DFF5E7 / #258F56@50%	#8CE8A9 / #153121 / #8CE8A9@60%
+drop	D	Drop Set	#B5430A / #FDE9DD / #D9652B@50%	#FF9E66 / #382013 / #FF9E66@60%
+myo	M	Myo-Reps	#6830B8 / #EFE6FD / #8D59DA@50%	#C6A4FF / #281C3B / #C6A4FF@60%
+partials	LP	Long-Length Partials	#0B6399 / #E1F3FC / #2B8AC2@50%	#7FD1FF / #132A38 / #7FD1FF@60%
+2.6 Shape, Elevation & Sensory Feedback
+Corner Radii: Cards 24dp (rounded-3xl), Modal Bottom Sheets & Dialogs 28dp (rounded-[28px]), Primary inputs & pill CTAs 16dp or full pill, inner chips/controls 8–12dp.
+Haptics: Trigger a light 12ms haptic tick on set check-off, quick-fill from previous, exercise reorder/drag start, exercise swap, and set tag/RPE/rest selection.
+Rest Completion Audio: Two-tone sine chime (660 Hz then 880 Hz, 140ms stagger, 280ms exponential decay) when countdown hits 0:00 and soundEnabled == true.
+Reduced Motion: Respect system reduced-motion setting (AnimatorDurationScale == 0), replacing smooth scroll with instant jump.
+3. Data Models & Persistence Schema
+Kotlin
+enum class WeightUnit { LB, KG }
+enum class SetTag { WARMUP, WORKING, DROP, MYO, PARTIALS }
+enum class WorkingSubTag { TOP, BACKOFF }
+enum class ThemeMode { SYSTEM, DARK, LIGHT }
+enum class ThemePresetId {
+    OBSIDIAN_GOLD, VOLT_IRON, CRIMSON_STEEL,
+    COBALT_TITANIUM, EMERALD_CARBON, MONOCHROME_STARK
+}
+enum class RoutineSortField { NAME, CREATED_AT, LAST_COMPLETED_AT }
+enum class SortDirection { ASC, DESC }
+
+data class PlannedSet(
+    val id: String,
+    val tag: SetTag? = null,
+    val workingSubTag: WorkingSubTag? = null, // only valid when tag == WORKING
+    val repRange: String? = null,             // e.g. "8" or "8-10"; null when RPE-only
+    val targetRpe: String? = null,            // e.g. "8", "8.5", or "8-9" (6.0–10.0 in 0.5 steps)
+    val restSeconds: Int                      // 0..600; 0 means "No rest"
+)
+
+data class RoutineExercise(
+    val id: String,
+    val name: String,
+    val targetSets: Int,                      // 1..20
+    val repRange: String,                     // derived summary, or "" if all sets are RPE-only
+    val targetRpe: String? = null,            // derived summary RPE
+    val restSeconds: Int? = null,             // exercise-level default rest
+    val plannedSets: List<PlannedSet>? = null // stored whenever per-set customization exists
+)
+
+data class Routine(
+    val id: String,
+    val name: String,
+    val focus: String? = null,
+    val description: String? = null,
+    val exercises: List<RoutineExercise>,
+    val createdAt: String,                    // ISO-8601
+    val updatedAt: String                     // ISO-8601
+)
+
+data class WorkoutSet(
+    val id: String,
+    val weight: String,                       // raw decimal input string while live
+    val reps: String,                         // raw integer input string while live
+    val completed: Boolean,
+    val completedAt: Long? = null,            // epoch ms
+    val tag: SetTag? = null,
+    val workingSubTag: WorkingSubTag? = null,
+    val targetRepRange: String? = null,
+    val targetRpe: String? = null,
+    val restSeconds: Int? = null,
+    val rpe: Double? = null                   // logged actual RPE: 6.0..10.0 (0.5 step)
+)
+
+data class ActiveExercise(
+    val id: String,
+    val name: String,
+    val targetSets: Int,
+    val repRange: String,
+    val targetRpe: String? = null,
+    val restSeconds: Int? = null,
+    val sets: List<WorkoutSet>
+)
+
+data class ActiveWorkout(
+    val id: String,
+    val routineId: String? = null,
+    val routineName: String,
+    val startedAt: Long,                      // epoch ms
+    val exercises: List<ActiveExercise>,
+    val notes: String = ""
+)
+
+data class CompletedSet(
+    val weight: Double,
+    val reps: Int,
+    val tag: SetTag? = null,
+    val workingSubTag: WorkingSubTag? = null,
+    val rpe: Double? = null
+)
+
+data class CompletedExercise(
+    val name: String,
+    val targetSets: Int? = null,
+    val repRange: String? = null,
+    val sets: List<CompletedSet>
+)
+
+data class CompletedWorkout(
+    val id: String,
+    val routineId: String? = null,
+    val routineName: String,
+    val startedAt: String,
+    val completedAt: String,
+    val durationSeconds: Int,
+    val totalVolume: Int,                     // rounded sum(weight * reps)
+    val unit: WeightUnit,
+    val exercises: List<CompletedExercise>,
+    val notes: String? = null
+)
+
+data class PlanWorkoutSlot(
+    val id: String,
+    val routineId: String? = null,            // null = future unbuilt placeholder
+    val label: String,                        // synced with linked routine name, or placeholder title
+    val notes: String? = null,
+    val timesPerWeek: Int                     // 1..7
+)
+
+data class PlanBlock(
+    val id: String,
+    val name: String,
+    val weeks: Int,                           // 1..52
+    val notes: String? = null,
+    val workouts: List<PlanWorkoutSlot>
+)
+
+data class TrainingPlan(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+    val useBlocks: Boolean,
+    val blocks: List<PlanBlock>,
+    val startedAt: String? = null,            // ISO-8601 when activated
+    val isActive: Boolean = false,
+    val createdAt: String,
+    val updatedAt: String
+)
+
+data class CustomPalette(val canvas: String, val surface: String, val accent: String, val text: String)
+
+data class ThemeConfig(
+    val mode: ThemeMode = ThemeMode.DARK,
+    val presetId: ThemePresetId = ThemePresetId.OBSIDIAN_GOLD,
+    val useCustomColors: Boolean = false,
+    val customDark: CustomPalette? = null,
+    val customLight: CustomPalette? = null
+)
+
+data class PlateCalculatorSettings(
+    val includeBar: Boolean = true,
+    val barWeightLb: Double = 45.0,
+    val barWeightKg: Double = 20.0,
+    val availablePlatesLb: List<Double> = listOf(45.0, 35.0, 25.0, 10.0, 5.0, 2.5),
+    val availablePlatesKg: List<Double> = listOf(25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25),
+    val perSideMode: Boolean = true
+)
+
+data class RoutineSortConfig(
+    val field: RoutineSortField = RoutineSortField.NAME,
+    val direction: SortDirection = SortDirection.ASC
+)
+
+data class AppSettings(
+    val unit: WeightUnit = WeightUnit.LB,
+    val defaultRestSeconds: Int = 90,
+    val soundEnabled: Boolean = true,
+    val theme: ThemeConfig = ThemeConfig(),
+    val plateCalculator: PlateCalculatorSettings = PlateCalculatorSettings(),
+    val routineSort: RoutineSortConfig = RoutineSortConfig()
+)
+Seed Data & Pre-Defined Exercise Library
+First Launch Seeding: Seeds 2 routines (Push Day with 5 exercises including Warm-up/Top/Backoff/Drop Set examples & Target RPE, and Back & Biceps with 5 exercises and description), 1 active 3-block 12-week plan (12-Week Progressive Split containing 2 linked routines in Block 1 and 4 placeholder workouts in Blocks 2–3), 2 sample completed workout logs, and default settings (lb, 90s rest, chime on, Obsidian Gold dark theme).
+Pre-Defined Exercise Library (53 exercises):
+Barbell Bench Press, Incline Dumbbell Press, Dumbbell Bench Press, Machine Chest Press, Incline Smith Machine Press, Chest Dip, Pec Deck Flye, Cable Flye, Seated Overhead Press, Dumbbell Shoulder Press, Machine Shoulder Press, Barbell Overhead Press, Cable Lateral Raise, Dumbbell Lateral Raise, Machine Lateral Raise, Triceps Rope Pushdown, Single-Arm Cable Pushdown, Overhead Triceps Extension, EZ-Bar Skullcrusher, Weighted Pull-Up, Assisted Pull-Up, Barbell Bent-Over Row, Seated Cable Row, Chest-Supported Row, Single-Arm Dumbbell Row, T-Bar Row, Lat Pulldown, Neutral-Grip Lat Pulldown, Straight-Arm Pulldown, Rear Delt Face Pull, Reverse Pec Deck, Incline Dumbbell Curl, Barbell Curl, Preacher Curl, Cable Curl, Hammer Curl, Barbell Back Squat, Hack Squat, Smith Machine Squat, Front Squat, Romanian Deadlift, Dumbbell Romanian Deadlift, Conventional Deadlift, Leg Press, Bulgarian Split Squat, Walking Lunges, Lying Leg Curl, Seated Leg Curl, Seated Leg Extension, Standing Calf Raise, Seated Calf Raise, Hanging Leg Raise, Cable Crunch.
+Custom Exercise Library Rules:
+Persist customExercises: List<String> on-device.
+Display normalization: name.trim().replace(Regex("\\s+"), " "). Comparison key: lowercase of display name.
+Startup Backfill: Scan all saved routines, completed history, and any active workout; append any exercise not already in the built-in 53 or customExercises to customExercises.
+Auto-Registration: Automatically merge new exercise names whenever saving a routine, adding an exercise mid-workout, swapping to a custom exercise mid-workout, or finishing a workout.
+Unified Library Order: [...customExercises, ...COMMON_EXERCISES] (custom movements appear first, deduplicated case-insensitively).
+4. Navigation Architecture & Global Chrome
+Primary Navigation (Material 3 NavigationBar on phones, NavigationRail / persistent Drawer on tablets):
+Routines (Dumbbell icon)
+Plans (CalendarRange icon)
+History (Clock icon)
+Primary Creation Action:
+Phone: Extended FAB docked bottom-right (New Routine on Routines tab, New Plan on Plans tab). Automatically shifts upward when the minimized Active Workout bar is visible.
+Tablet/Wide: Top-right pill button + sidebar bottom full-width button.
+Minimized Active Workout Resume Bar: When a workout is in progress and minimized, display a floating elevated resume bar above the bottom navigation bar (or in the tablet sidebar) showing Play icon, routine name, live elapsed clock (MM:SS), active rest countdown if running (· Rest 01:15), and Resume. Tapping re-opens the full-screen Active Workout view.
+Full-Screen Takeover: Active Workout hides bottom navigation and takes the entire viewport.
+Lightweight Snackbar / Toast: Centered top floating pill (2.6s auto-dismiss) for confirmations (Saved "...", Created & linked "...", Routine deleted, Workout discarded, Logged ..., Activated "...", Paused "...", Plan restarted at Week 1, Sample routines and plans restored).
+Replace Active Workout Guard: Attempting to start a routine while an active workout already exists opens a destructive ConfirmDialog ("Replace active workout?") before discarding the current session and starting the new one.
+5. Screen-by-Screen & Sheet Specifications
+5.1 Routines Screen (RoutinesView)
+Header: Title "Routines", metadata line ("{N} saved · {defaultRest} default rest · {unit}"), Preferences icon button, and (on tablet) New Routine CTA.
+Sort Bar:
+3-way segmented control: Name (default asc A–Z), Created (default desc Newest), Last Done (default desc Most recent). Tapping the already-active field flips direction.
+Direction toggle chip showing icon + contextual label (A–Z/Z–A, Newest/Oldest, Most recent/Least recent).
+Tie-breaker: natural case-insensitive alphabetical sort by routine name.
+Empty State: Centered card with "No routines yet" and Create Routine CTA.
+Routine Card (1-col phone, 2-col tablet):
+Header Row: Routine name (left) + compact Start accent button + ⋮ overflow menu button (right).
+Overflow Menu (DropdownMenu): History, Duplicate, Edit, divider, destructive Delete (triggers confirmation dialog; deleting a routine keeps past history intact and detaches routineId from any Plan slots while preserving slot labels).
+Details: Optional focus, optional description, and metadata strip: "{E} exercises · {S} sets · Last done {relativeDate} ({count})" (or "Not logged yet"). Tapping the last-done text navigates to History filtered to that routine.
+Collapsible Exercises Section (collapsed by default): Toggle row "Show exercises ({E})" / "Hide exercises ({E})" with rotating chevron.
+When expanded: Numbered list of exercises showing name, optional tag summary (2 W · 1 Top · 2 Backoff), and derived target summary (5 × 4-10 @8-9).
+Nested Per-Exercise Set Preview: Tapping any exercise row expands an indented list of every planned set (Set 1 · Warm-up | 8 reps · RPE 8 · Rest 1:00 or orange No rest before a Drop Set).
+5.2 Routine Editor Sheet (RoutineEditorSheet)
+Modal bottom sheet (full-height on phone, centered dialog on tablet). Title adapts: "New Routine", "Edit Routine", or "Duplicate Routine".
+Form Fields:
+Routine Name (required), Muscle Group Focus (optional), Description (optional, 2-line multiline).
+Ordered Exercises List:
+Each exercise card contains:
+Number index + Exercise Name input with live autocomplete chips from exerciseLibrary (up to 8 matches; prefix matches ranked before substring matches; omits exact match). If typed text is non-empty and not in the library, show quiet caption: "New exercise — will be saved to your library".
+Move Up / Move Down / Delete Exercise icon buttons (Delete disabled when only 1 exercise remains).
+3-Column Exercise Summary Controls:
+Sets stepper (1..20). Increasing clones the last set's target/rest (converting drop tag to working on new appended sets).
+Reps / RPE (changes label to Target (varied) when sets differ) — opens inline SetTargetControl to apply a uniform target to all sets.
+Default Rest — opens inline rest picker (-15s, +15s, and 8 presets in 30s increments: 0:30, 1:00, 1:30, 2:00, 2:30, 3:00, 3:30, 4:00). Only updates sets that matched the previous exercise default (and preserves 0s before Drop Sets).
+Expandable Per-Set Setup (ALWAYS starts collapsed on Create, Edit, and Duplicate):
+Toggle bar "Expand sets" / "Hide per-set setup" showing tag or target summary.
+Expanded 5-column table: #, Tag, Target, Rest, and action pair (Duplicate Set icon button inserting an identical copy directly below + Remove Set icon button, min 1 set, max 20).
+Inline expandable drawers per set:
+Tag Picker: None, Warm-up, Working, Drop Set, Myo-Reps, Long-Length Partials, plus Working subtag: Top Set | Backoff Set.
+Target Picker: Embeds SetTargetControl (3 modes: Reps Only, RPE Only, Reps + RPE; each supports exact or range).
+Rest Picker: -15s/+15s + 30s presets (0:30–4:00). Locked to non-interactive orange "No rest" badge + caption "No rest preceding Drop Set (Set N)" whenever the next set is tagged Drop Set.
++ Add Set dashed button at bottom of expanded table.
++ Add Exercise dashed button at bottom of list (auto-focuses suggestion row for new exercise).
+Footer: Cancel + primary submit (Create Routine / Save Changes / Save Copy).
+Validation: Requires non-empty routine name and at least 1 exercise with a non-empty name.
+Unsaved-Change Guard: Compares serialized state (ignoring volatile IDs) against initial snapshot; for isDuplicateDraft == true, always treats as dirty until saved. Pressing X, Cancel, hardware Back, or backdrop shows ConfirmDialog ("Discard unsaved changes?" / "Discard Changes" / "Keep Editing").
+Reusable Target Controls (SetTargetControl & RepRangeControl)
+3-Way Target Mode: Reps Only | RPE Only (hint: "Log reps achieved during workout") | Reps + RPE.
+Reps Control: Toggle Exact Target vs Rep Range.
+Exact: 1–100 stepper + presets 5, 6, 8, 10, 12, 15.
+Range: Min (1–99) and Max (2–100) steppers that automatically push the opposite bound so min < max is strictly enforced (impossible to create reversed ranges like 7-5), plus presets 4-6, 6-8, 8-10, 10-12, 12-15.
+RPE Control: Toggle Exact RPE vs RPE Range.
+Exact: 6.0–10.0 in 0.5 steps + presets 7, 7.5, 8, 8.5, 9, 9.5, 10.
+Range: Min (6.0–9.5) and Max (6.5–10.0) in 0.5 steps enforcing min < max, plus presets 6-7, 7-8, 7.5-8.5, 8-9, 9-10.
+5.3 Plans Screen (PlansView)
+Header: Title "Plans", metadata ("{N} saved · Active: {activePlanName}"), Preferences button, tablet New Plan CTA.
+Ordering: Active plan pinned first, followed by remaining plans sorted by updatedAt descending.
+Plan Card:
+Highlighted accent border when active; active status line above title ("Active plan · Week X of Y" or "Active plan · All Y weeks reached").
+Top-Right Actions: Set Active / Active pill toggle + ⋮ overflow menu (Restart from Week 1 [visible when active], Duplicate, Edit, divider, destructive Delete).
+Optional description + summary metadata ("{W} weeks · {B} blocks · {S} total sessions").
+Active Plan Progress Box (shown only when isActive):
+Shows current phase/block name (or week) and "{done}/{target} sessions done this week".
+Proportional horizontal segmented progress bar where each block's flex-weight equals its weeks, filled according to elapsed weeks within that block.
+Collapsible Blocks & Workouts Section (collapsed by default):
+Toggle row "Show blocks & workouts ({B})" or "Show workouts ({N})".
+When expanded: Renders each block (with week span Weeks 1–4, block duration, Current block badge if active, name, optional notes, and {X} sessions/wk).
+Each Workout Slot Row shows name, {N}×/wk, and status:
+Linked Saved Routine: Exercise count, total sets, and (if in current active block) "{done}/{target} this wk" (green when goal met), plus History icon button and Start accent button.
+Unbuilt Placeholder Slot: "Not built yet · Planned placeholder", plus Link button (opens inline picker drawer of saved routines to assign) and Build Routine button (opens RoutineEditorSheet prefilled with the placeholder's name; saving automatically creates the routine AND links it to this exact plan slot).
+5.4 Plan Editor Sheet (PlanEditorSheet)
+Modal bottom sheet for creating, editing, or duplicating a plan.
+Header: Title ("New Training Plan" / "Edit Plan" / "Duplicate Plan"), live totals subtitle ("{W} weeks total · {B} blocks · {S} planned sessions"), Close button.
+Fields: Plan Name (required), Goal / Description (optional).
+Plan Structure Toggle: Single Repeating Schedule (useBlocks = false, hides block headers and operates on 1 block) vs Training Blocks (useBlocks = true, multi-phase blocks).
+Per-Block Editor:
+Block header (in block mode): computed week range (Weeks 1–4), weekly session count, editable block name, Move Up/Down, Duplicate Block, Delete Block (min 1).
+Duration in weeks: 1–52 stepper + quick presets (2w, 4w, 6w, 8w, 12w).
+Optional block notes input.
+Weekly Workouts List:
+Linked routines show name + exercise count; placeholders show editable inline text field + "Planned · not built yet".
+Each row has ×/wk stepper (1..7), Link button (inline drawer to swap routine or convert to placeholder), and Delete button.
+Quick-Add Saved Routines: Tap any routine chip to add at 1×/wk; tapping an already-added routine increments its frequency (up to 7×/wk) and shows checkmark + ({N}×).
+Schedule Future Placeholder: Text input + Add Planned button (or Enter key).
++ Add Block dashed button (in Training Blocks mode).
+Validation: Requires plan name, at least 1 workout overall, and no empty blocks.
+Unsaved-Change Guard: Same dirty-check & duplicate-draft confirmation dialog ("Discard unsaved changes?").
+5.5 Active Workout Screen (ActiveWorkoutView)
+Full-screen workout logging experience.
+Sticky Top App Bar (56dp):
+Left: Minimize chevron-left button, routine title, live elapsed timer (MM:SS or H:MM:SS), and "{completed}/{total} sets".
+Right: Manual Rest Timer trigger pill (shows live remaining countdown when running or default rest seconds), primary Finish pill CTA.
+Toolbar Row:
+Left: Instructional count ("{N} exercises · Tap to expand" or "Drag handle or tap arrows to reorder").
+Right: Plates button (opens Plate Calculator) and Reorder / Done toggle button (visible when exercises.length > 1).
+Reorder Mode:
+Replaces cards with compact draggable rows containing: touch drag grip handle (drag-and-drop with live index swap + haptic tick), numbered exercise name, {done}/{total} sets + Done label, and Up / Down 44dp arrow buttons.
+Collapsible Exercise Logging Stream:
+Initial State: All exercises start collapsed on session start.
+Collapsed Card Header: Number index, exercise name, green CheckCircle2 when all sets complete, summary target (5 × 4-10 @8-9), "{done}/{total} done", and condensed previous-session preview (Last 205lb×5), plus chevron indicator.
+Auto-Advance Behavior: The moment the final incomplete set of an exercise is checked off, that exercise auto-collapses, the next incomplete exercise (searching forward first, then wrapping around from top) auto-expands, and the viewport scrolls smoothly to it.
+Expanded Exercise Body:
+Action Strip: Full previous session history line (Last (2 days ago): W 135×8 @6, ... lb or "First time logging this exercise"), Plates button (auto-seeds weight from current/previous set), Swap button, and Exercise Rest cycle button (60s -> 90s -> 120s -> 180s).
+6-Column Set Grid: Set | Prev | {lb/kg} | Reps | RPE | Done
+Set/Tag Cell (46dp): Shows set index (1, 2, 3) or colored short tag code (W, TOP, BO, D, M, LP). Tapping opens SetTagRpeSheet.
+Prev Cell: Displays previous session's weight×reps (and previous tag/RPE caption). Tapping copies weight & reps directly into the row with haptic feedback.
+Weight Input: Decimal numeric keypad, placeholder shows previous weight or 0.
+Reps Input: Integer numeric keypad, placeholder shows previous reps, or set target min reps, or "Reps" for RPE-only sets.
+RPE Cell: Shows logged actual RPE (highlighted), or muted @targetRpe if predefined, or —. Tapping opens SetTagRpeSheet.
+Done Checkbox (46dp):
+Checking off an empty weight/reps row auto-fills from previous session (or target min reps for reps, leaving RPE-only reps blank if no history).
+Marks row with green okSurface / okInput tint.
+Automatically launches Rest Timer with the set's rest duration — unless the next set is tagged Drop Set (0s rest, skips/clears timer).
+Quiet Unboxed Set Caption: Shown under the row whenever tag, custom rest, custom rep target, target RPE ("Lift to RPE 8" for RPE-only vs "Target RPE 8"), "No rest · Drop set next", or logged RPE exists.
+Per-Exercise Footer: + Add Set (clones last set's values/targets/rest) and - Remove Set (when sets.length > 1).
+Stream Footer: Add Exercise button + destructive Discard Workout button.
+Tablet/Landscape Right Sidebar (lg+): Sticky Session Progress card (Elapsed, Completed Sets, Live Volume, clickable Exercise Jump List, and live Session Notes textarea).
+Active Workout Sub-Sheets & Modals
+Docked Rest Timer Bar (RestTimerBar):
+Visible whenever timer is running or complete. Thin linear progress bar on top.
+Left tappable block: Timer icon (or Check icon when done), large mono countdown (MM:SS or "Done"), exercise name subtitle ("Rest · {name}" or "Ready for next set"). Tapping toggles an inline Customize Popover above the bar with mute/unmute toggle, 8 preset durations (0:30–4:00, tapping restarts timer & saves as default), and -15s/+15s fine-tuning.
+Right actions: +30s button (also restarts a completed timer with 30s) and Skip / Dismiss button.
+Set Options Bottom Sheet (SetTagRpeSheet):
+Header: "Set {N} · {exerciseName}".
+Set Tag Selector: 5 full-width cards (Warm-up, Working, Drop Set, Myo-Reps, Long-Length Partials) + indented 2-col Working Subtag cards (Top Set, Backoff Set) + Clear tag. Tapping an active tag toggles it off.
+RPE Selector (6–10): Shows target RPE badge if planned, dynamic effort/RIR description for selected RPE (6="Light effort · 4+ RIR" through 10="Max effort · 0 RIR"), 5-col grid of 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10 + None.
+Rest After Set: -15s/+15s + 30s presets (0:30–4:00). If the next set is a Drop Set, displays locked orange warning card "No rest after this set · Next set is a Drop Set — go straight into it (0:00)".
+Plate Calculator Modal (PlateCalculatorModal):
+Header with inline lb / kg unit switch.
+Target Total Weight numeric input with -stepSmall / +stepSmall buttons (±5 lb or ±2.5 kg) and 4 quick-nudge buttons (-10/-5/+5/+10 lb or -5/-2.5/+2.5/+5 kg).
+Visual Barbell / Sleeve Diagram: Shows achieved total, status (Exact match, Below bar weight, or tappable Short by X · Use Y), horizontal graphic stack of up to 10 color-coded proportional plates (Red 45lb/25kg, Blue 35lb/20kg, Gold 25lb/15kg, Green 10, Slate 5, Silver 2.5/1.25) on a barbell shaft+collar or machine sleeve, plus textual breakdown (2×45lb + 1×10lb and Bar 45 + Plates 200).
+Equipment Toggles (persisted):
+Include Bar toggle (Off for plate-loaded machines). When On, shows custom bar weight numeric input (0–200) + 4 presets (45, 35, 25, 15 lb or 20, 15, 10, 7.5 kg).
+Sleeves toggle: 2 Sides (divides plate load by 2) vs 1 Sleeve (full plate load on single peg).
+Available Plates Grid (persisted per unit): Toggle chips for [45, 35, 25, 10, 5, 2.5] (lb) or [25, 20, 15, 10, 5, 2.5, 1.25] (kg). Enforces keeping at least 1 plate enabled; "Select all" reset link shown when any plate is disabled.
+Add Exercise Mid-Workout Sheet: Text input + Add button, new-exercise library hint, and up to 10 Quick pick chips from exerciseLibrary (excluding exercises already in the current workout; pre-fills set weights/reps from last history session if available).
+Swap Exercise On-the-Fly Sheet: Text input + Swap button, new-exercise library hint, up to 10 suggested alternatives (when query is empty, ranks movements from exerciseLibrary sharing muscle/movement keywords like bench/chest, pull-up/pulldown, row, squat/leg press; when typing, prefix-first match), and destructive Remove Exercise from Session button (when exercises.length > 1). Preserves completed sets on the swapped exercise and clears uncompleted sets so new movement history displays cleanly.
+Finish Workout Sheet: Summary strip (Duration, Sets Logged, Volume), optional Workout Notes multiline input, Keep Lifting + Save Workout (disabled if 0 completed sets), and Discard Workout link (opens destructive confirmation dialog).
+5.6 History Screen (HistoryView)
+Header: Title "History", subtitle (reflects active filter if set), and Clear Filter pill button when filtered.
+Horizontal Routine Filter Chips: "All Workouts (N)" followed by deduplicated saved routines (sorted alphabetically) plus any historical-only deleted routine names, each displaying its completed session count. Tapping an active chip clears the filter.
+3-Column Computed Overview Strip: Workouts, Total Volume (accent color), Avg Duration — recomputed dynamically for the active filter.
+Empty States: Separate helpful empty states for filtered-empty (with Start {routineName} button if routine still exists + Show All History) vs globally empty (Go to Routines).
+Completed Workout Card (chronological, newest first; newest matching card auto-expanded):
+Title, formatted date/time (Mon, Nov 18 · 5:30 PM), Repeat pill button (launches active workout from matching saved routine, or constructs a synthetic routine from the historical log if the routine was deleted), and Delete icon button (with confirmation dialog).
+Unboxed stats strip (52 min · 15,175 lb volume · 17 sets across 5 exercises), optional notes.
+Always-visible compact exercise summary (Barbell Bench Press | W 135 lb × 8 @6 · TOP 205 lb × 5 @9 ...).
+Expandable "View set-by-set breakdown" panel (1-col phone, 2-col tablet): per-exercise volume header + itemized set rows with set number, colored tag label, weight unit × reps, and RPE X.
+5.7 Preferences / Settings Sheet (SettingsSheet)
+Scrollable bottom sheet containing:
+Appearance: 3-way segmented control (Dark, Light, Auto).
+Color Scheme: 2-column grid of the 6 predefined high-contrast presets (each showing name, checkmark when active, and 4 circular color swatches) + Customize toggle button.
+Custom Color Builder (when expanded): Shows "Editing Dark/Light Palette", live WCAG contrast ratio (Contrast X.X:1), red warning banner if < 4.5:1, Reset button, 4-slot selector (Accent, Background, Cards, Text), and interactive ColorWheelPicker (circular Hue/Saturation canvas wheel with draggable reticle, Brightness 0–100% slider, Hex text input + native color swatch, and numeric R / G / B 0–255 inputs).
+Weight Unit: 2-way toggle (Pounds (lb) / Kilograms (kg)).
+Default Rest Timer: -15s / +15s stepper (15s–600s) + 4-col grid of 30s presets (0:30–4:00).
+Rest Complete Chime: Toggle switch (On / Muted).
+Device Storage: Local storage note + destructive Reset Demo Data button (with confirmation dialog restoring sample routines, plans, history, default settings, and resetting custom exercises).
+6. Critical Business Rules & Edge Cases
+Drop Set Zero-Rest Rule (enforceDropSetRestRules):
+Whenever set i + 1 has tag == DROP, set i is automatically forced to restSeconds = 0 ("No rest") across the Routine Editor, Routine preview, and Active Workout.
+If set i + 1 is untagged from DROP or deleted while set i had restSeconds == 0 (and the new set i + 1 isn't also DROP), restore set i to the exercise's default rest.
+Duplicating a set whose rest was zeroed only because a drop set followed it restores the exercise's default rest on the cloned set unless the clone itself precedes a drop set.
+Non-Reversed Targets & Derived Summaries:
+Rep ranges (1–100) and RPE targets (6.0–10.0, snapped to 0.5) can never be reversed (7-5 normalizes to 5-7; 8-8 collapses to 8).
+Every planned set must have at least one target (repRange, targetRpe, or both).
+Exercise-level summary repRange and targetRpe are dynamically derived as the min–max envelope across all planned sets (e.g., sets of 8, 5, 4-6, 8-10 summarize as 4-10; RPE-only sets produce empty repRange = "" and format as 3 × RPE 8).
+Drift-Free Rest Timer: Store an absolute target timestamp endTime = now + durationMs and compute remainingSeconds = ceil((endTime - now) / 1000) on a 250ms tick (or Android ForegroundService / AlarmManager notification so the timer survives backgrounding and screen lock).
+Greedy Plate Calculator Math: Perform subtraction in integer hundredths (round(value * 100)) descending through sorted enabled plates to prevent floating-point drift on 2.5 and 1.25 plates.
+Plan Progress & Weekly Compliance:
+elapsedWeeks = floor((now - startedAt) / 7_DAYS_MS), currentWeek = clamp(elapsedWeeks + 1, 1, totalWeeks).
+Current week window is [startedAt + (currentWeek - 1) * 7d, +7d).
+Each slot's weekly completion count is capped at slot.timesPerWeek when summing the block's weekly progress total so doing one routine 3 times doesn't mask a missed second routine.
+Routine History Matching (matchesRoutineHistory): Matches if workout.routineId == routine.id, OR (fallback for legacy/renamed/deleted logs) case-insensitive normalized routine names match.
+Duplicate Naming Collision Prevention: Strips existing (Copy) / (Copy N) suffix, then appends (Copy), (Copy 2), (Copy 3), etc., until unique case-insensitively.
+Accidental Modal Dismiss Protection: Only dismiss modal sheets/dialogs on scrim tap when touch-down AND touch-up occur outside the sheet (native Compose ModalBottomSheet handles this automatically, avoiding web text-drag dismissal bugs).
+7. Key End-to-End User Flows
+Create & Run a Custom Routine: Routines tab → New Routine → enter name + exercises (picking from autocomplete or typing a brand-new movement, which auto-saves to library) → optionally expand sets to add Warm-up / Top / Backoff / Drop Set tags, Target RPE, and per-set rest → Create Routine → tap Start → tap first exercise to expand → tap Prev or enter Weight/Reps → tap Done checkbox → rest timer auto-starts → finishing last set auto-collapses exercise and opens the next → tap Finish → add notes → Save Workout → redirects to History.
+Mid-Workout Adaptation: Inside Active Workout → machine is taken → tap Reorder to drag/move exercise lower, OR tap Swap on the exercise to pick a keyword-matched alternative (or type a custom one, auto-saved to library), OR tap Plates to compute exact barbell/machine plate loading.
+Multi-Block Plan with Future Placeholders: Plans tab → New Plan → select Training Blocks → Block 1 (4w) add existing routines at 1×/wk → + Add Block → Block 2 (4w) add placeholder workouts (Upper Hypertrophy, Lower Hypertrophy) → Create Plan → Set Active → later expand plan card and tap Build Routine on Upper Hypertrophy → Routine Editor opens prefilled → saving automatically creates the routine and links it into Block 2.
+Per-Routine Progress Review: On any Routine card, tap Last done 2 days ago (3) (or ⋮ -> History) → switches to History tab pre-filtered to that routine, updating the Workouts/Volume/Duration summary strip and auto-expanding the latest log.
+8. Gemini Prompts & AI Features
+Current App Status: None. RepDay contains zero Gemini API integrations, zero system instructions, and zero prompt templates. All logic (including exercise swap suggestions, custom exercise library management, plate breakdown, and contrast calculations) runs deterministically and offline on-device.
+For Your Native Android Rebuild: Do not include the Gemini SDK, API key configuration, or network permissions unless you intentionally decide to add new AI features later. Keeping the app 100% offline guarantees instant gym-floor responsiveness in low-signal basements/gyms.
+9. Native Android (Jetpack Compose) Implementation Mapping
+RepDay Web Concept	Recommended Native Android Equivalent
+localStorage JSON keys	Room Database (routines, plans, completed_workouts, custom_exercises) + Proto/Preferences DataStore (AppSettings, ActiveWorkout crash-recovery snapshot)
+CSS Variables + applyThemeToDocument	Custom CompositionLocal<RepDayColors> mapped into Material 3 darkColorScheme / lightColorScheme
+ActiveWorkoutView Rest Timer	ForegroundService with MediaSession / Chronometer notification + SoundPool or ToneGenerator chime + VibrationEffect.createOneShot(12, DEFAULT_AMPLITUDE)
+Bottom Sheets (RoutineEditorSheet, PlanEditorSheet, SettingsSheet, PlateCalculatorModal, SetTagRpeSheet)	Material 3 ModalBottomSheet (skipPartiallyExpanded = true) + BackHandler wired to unsaved-changes confirmation AlertDialog
+Drag-and-Drop Reorder Mode	LazyColumn with drag-reorder modifier (e.g., sh.calvin.reorderable) + accessible Up/Down IconButton controls
+ColorWheelPicker Canvas	Compose Canvas with SweepGradient + radial white/gray overlay and pointerInput(detectDragGestures)

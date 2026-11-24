@@ -1,0 +1,6 @@
+{
+  "name": "RepDay",
+  "description": "Offline, local-first Material 3 strength-training and workout-logging app built for fast one-handed gym-floor logging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">RepDay</string>
+    <string name="nav_routines">Routines</string>
+    <string name="nav_plans">Plans</string>
+    <string name="nav_history">History</string>
+    <string name="action_new_routine">New Routine</string>
+    <string name="action_new_plan">New Plan</string>
+    <string name="action_preferences">Preferences</string>
+    <string name="action_start">Start</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_finish">Finish</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_duplicate">Duplicate</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_history">History</string>
+    <string name="action_plates">Plates</string>
+    <string name="action_reorder">Reorder</string>
+    <string name="action_done">Done</string>
+    <string name="action_swap">Swap</string>
+    <string name="action_add_exercise">Add Exercise</string>
+    <string name="action_discard_workout">Discard Workout</string>
+    <string name="dialog_replace_active_title">Replace active workout?</string>
+    <string name="dialog_replace_active_body">You have an active workout in progress. Starting a new workout will discard your unsaved sets from the current session.</string>
+    <string name="dialog_discard_changes_title">Discard unsaved changes?</string>
+    <string name="dialog_discard_changes_body">Your edits have not been saved yet. Discard them and close?</string>
+    <string name="new_exercise_library_hint">New exercise — will be saved to your library</string>
+</resources>
