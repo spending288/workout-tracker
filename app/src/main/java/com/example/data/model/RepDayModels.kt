@@ -2,16 +2,23 @@ package com.example.data.model
 
 import com.squareup.moshi.JsonClass
 
+// Every enum saved through Moshi needs @JsonClass(generateAdapter = false). Without it, the
+// release build's shrinker (R8) renames the enum's fields, Moshi can't find them, and the app
+// crashes on launch when it loads settings. Debug builds aren't shrunk, so they look fine.
+// EnumJsonAnnotationTest fails if a saved enum is missing this annotation.
+@JsonClass(generateAdapter = false)
 enum class WeightUnit(val label: String) {
     LB("lb"),
     KG("kg")
 }
 
+@JsonClass(generateAdapter = false)
 enum class EffortScale(val label: String) {
     RPE("RPE"),
     RIR("RIR")
 }
 
+@JsonClass(generateAdapter = false)
 enum class SetTag(val shortCode: String, val displayName: String) {
     WARMUP("W", "Warm-up"),
     WORKING("WK", "Working"),
@@ -20,17 +27,20 @@ enum class SetTag(val shortCode: String, val displayName: String) {
     PARTIALS("LP", "Long-Length Partials")
 }
 
+@JsonClass(generateAdapter = false)
 enum class WorkingSubTag(val shortCode: String, val displayName: String, val fullLabel: String) {
     TOP("TOP", "Top Set", "Working · Top"),
     BACKOFF("BO", "Backoff Set", "Working · Backoff")
 }
 
+@JsonClass(generateAdapter = false)
 enum class ThemeMode(val label: String) {
     DARK("Dark"),
     LIGHT("Light"),
     SYSTEM("Auto")
 }
 
+@JsonClass(generateAdapter = false)
 enum class ThemePresetId(val displayName: String, val subtitle: String) {
     OBSIDIAN_GOLD("Obsidian Gold", "Black, gold, silver & crisp white"),
     VOLT_IRON("Volt Iron", "Charcoal, athletic lime & slate"),
@@ -40,12 +50,14 @@ enum class ThemePresetId(val displayName: String, val subtitle: String) {
     MONOCHROME_STARK("Stark Silver", "Pure black, silver & stark white")
 }
 
+@JsonClass(generateAdapter = false)
 enum class RoutineSortField(val label: String) {
     NAME("Name"),
     CREATED_AT("Created"),
     LAST_COMPLETED_AT("Last Done")
 }
 
+@JsonClass(generateAdapter = false)
 enum class SortDirection {
     ASC,
     DESC
