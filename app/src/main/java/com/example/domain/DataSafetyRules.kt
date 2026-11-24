@@ -33,7 +33,9 @@ data class EditableCompletedExercise(
     val targetSets: Int? = null,
     val repRange: String? = null,
     val sets: List<EditableCompletedSet>,
-    val loadType: LoadType = LoadType.STANDARD
+    val loadType: LoadType = LoadType.STANDARD,
+    val originalNameKey: String? = null,
+    val originalLoadType: LoadType = loadType
 )
 
 data class HistoryWorkoutEditDraft(
@@ -62,6 +64,8 @@ object HistoryWorkoutEditRules {
                 targetSets = ex.targetSets,
                 repRange = ex.repRange,
                 loadType = ex.loadType,
+                originalNameKey = RepDayRules.exerciseKey(ex.name),
+                originalLoadType = ex.loadType,
                 sets = ex.sets.mapIndexed { setIdx, s ->
                     EditableCompletedSet(
                         id = "hs-$exIdx-$setIdx-${RepDayRules.newId("s")}",
@@ -147,11 +151,30 @@ object HistoryWorkoutEditRules {
     fun canSave(draft: HistoryWorkoutEditDraft): Boolean = validationError(draft) == null
 
     /**
+     * Exercises kept under their original name preserve the weight type saved in history.
+     * Added exercises (originalNameKey == null) or renamed exercises resolve via
+     * [LoadTypeRules.resolve] using the user's current overrides.
+     */
+    fun resolvedLoadType(
+        exercise: EditableCompletedExercise,
+        loadTypes: Map<String, LoadType> = emptyMap()
+    ): LoadType {
+        val currentKey = RepDayRules.exerciseKey(exercise.name)
+        if (exercise.originalNameKey != null && currentKey == exercise.originalNameKey) {
+            return exercise.originalLoadType
+        }
+        return LoadTypeRules.resolve(exercise.name, loadTypes)
+    }
+
+    /**
      * Converts an edited history draft back into a [CompletedWorkout], recomputing totalVolume
      * and preserving original timestamps when start time and duration were not modified.
      * Returns null if validation fails.
      */
-    fun applyEdit(draft: HistoryWorkoutEditDraft): CompletedWorkout? {
+    fun applyEdit(
+        draft: HistoryWorkoutEditDraft,
+        loadTypes: Map<String, LoadType> = emptyMap()
+    ): CompletedWorkout? {
         if (!canSave(draft)) return null
         val cleanedExercises = draft.exercises.mapNotNull { ex ->
             val normalizedName = RepDayRules.normalizeExerciseName(ex.name)
@@ -174,7 +197,7 @@ object HistoryWorkoutEditRules {
                 targetSets = ex.targetSets ?: mappedSets.size,
                 repRange = ex.repRange,
                 sets = mappedSets,
-                loadType = ex.loadType
+                loadType = resolvedLoadType(ex, loadTypes)
             )
         }
         if (cleanedExercises.isEmpty()) return null
@@ -351,7 +374,8 @@ object RepDayBackupRules {
         existingRoutines: List<Routine>,
         existingPlans: List<TrainingPlan>,
         existingHistory: List<CompletedWorkout>,
-        existingCustomExercises: List<String>
+        existingCustomExercises: List<String>,
+        currentSettings: AppSettings = AppSettings()
     ): BackupImportPlan {
         return when (mode) {
             BackupImportMode.REPLACE -> {
@@ -371,13 +395,18 @@ object RepDayBackupRules {
                 backup.routines.forEach { r -> r.exercises.forEach { allExerciseNames.add(it.name) } }
                 backup.history.forEach { w -> w.exercises.forEach { allExerciseNames.add(it.name) } }
                 val customToSave = RepDayRules.extractNewCustomExercises(allExerciseNames, emptyList())
+                val mergedSettings = backup.settings.copy(
+                    autoBackupEnabled = currentSettings.autoBackupEnabled,
+                    autoBackupFolderUri = currentSettings.autoBackupFolderUri,
+                    lastAutoBackupMs = currentSettings.lastAutoBackupMs
+                )
                 BackupImportPlan(
                     mode = BackupImportMode.REPLACE,
                     routinesToSave = backup.routines.distinctBy { it.id },
                     plansToSave = cleanedPlans.distinctBy { it.id },
                     historyToSave = backup.history.distinctBy { it.id },
                     customExercisesToSave = customToSave,
-                    settingsToSave = backup.settings
+                    settingsToSave = mergedSettings
                 )
             }
 

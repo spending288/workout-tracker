@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.CompletedWorkout
 import com.example.data.model.EffortScale
+import com.example.data.model.LoadType
 import com.example.data.model.SetTag
 import com.example.data.model.WorkingSubTag
 import com.example.domain.EditableCompletedExercise
@@ -112,6 +113,7 @@ fun HistoryWorkoutEditorSheet(
     workout: CompletedWorkout,
     exerciseLibrary: List<String>,
     effortScale: EffortScale = EffortScale.RPE,
+    exerciseLoadTypes: Map<String, LoadType> = emptyMap(),
     onSave: (CompletedWorkout) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -162,12 +164,13 @@ fun HistoryWorkoutEditorSheet(
         confirmValueChange = confirmSheetValueChange
     )
 
-    val liveVolume = remember(draft.exercises) {
+    val liveVolume = remember(draft.exercises, exerciseLoadTypes, workout.bodyWeight) {
         draft.exercises.sumOf { ex ->
+            val resolvedType = HistoryWorkoutEditRules.resolvedLoadType(ex, exerciseLoadTypes)
             ex.sets.sumOf { s ->
                 val w = s.weightText.trim().toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0
                 val r = s.repsText.trim().toIntOrNull()?.coerceAtLeast(0) ?: 0
-                LoadTypeRules.setVolume(w, r, ex.loadType, workout.bodyWeight)
+                LoadTypeRules.setVolume(w, r, resolvedType, workout.bodyWeight)
             }
         }.roundToInt()
     }
@@ -507,10 +510,11 @@ fun HistoryWorkoutEditorSheet(
 
                 // Exercises list
                 itemsIndexed(draft.exercises, key = { _, ex -> ex.id }) { exIdx, exercise ->
+                    val resolvedType = HistoryWorkoutEditRules.resolvedLoadType(exercise, exerciseLoadTypes)
                     HistoryExerciseEditCard(
                         index = exIdx,
                         exercise = exercise,
-                        unitLabel = LoadTypeRules.weightColumnLabel(workout.unit, exercise.loadType),
+                        unitLabel = LoadTypeRules.weightColumnLabel(workout.unit, resolvedType),
                         effortScale = effortScale,
                         exerciseLibrary = exerciseLibrary,
                         isSuggestionsOpen = focusedExerciseId == exercise.id,
@@ -523,7 +527,12 @@ fun HistoryWorkoutEditorSheet(
                         onRenameExercise = { newName ->
                             draft = draft.copy(
                                 exercises = draft.exercises.map {
-                                    if (it.id == exercise.id) it.copy(name = newName) else it
+                                    if (it.id == exercise.id) {
+                                        val renamed = it.copy(name = newName)
+                                        renamed.copy(
+                                            loadType = HistoryWorkoutEditRules.resolvedLoadType(renamed, exerciseLoadTypes)
+                                        )
+                                    } else it
                                 }
                             )
                         },
@@ -625,7 +634,7 @@ fun HistoryWorkoutEditorSheet(
                 }
                 Button(
                     onClick = {
-                        HistoryWorkoutEditRules.applyEdit(draft)?.let(onSave)
+                        HistoryWorkoutEditRules.applyEdit(draft, exerciseLoadTypes)?.let(onSave)
                     },
                     enabled = canSave,
                     shape = CircleShape,

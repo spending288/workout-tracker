@@ -10,6 +10,7 @@ import com.example.data.model.AppSettings
 import com.example.data.model.CompletedExercise
 import com.example.data.model.CompletedSet
 import com.example.data.model.CompletedWorkout
+import com.example.data.model.LoadType
 import com.example.data.model.PlanBlock
 import com.example.data.model.PlanWorkoutSlot
 import com.example.data.model.Routine
@@ -21,8 +22,10 @@ import com.example.data.model.WorkingSubTag
 import com.example.domain.BackupImportMode
 import com.example.domain.BackupImportPlan
 import com.example.domain.BackupValidationResult
+import com.example.domain.EditableCompletedExercise
 import com.example.domain.EditableCompletedSet
 import com.example.domain.HistoryWorkoutEditRules
+import com.example.domain.LoadTypeRules
 import com.example.domain.RepDayBackupRules
 import com.example.domain.RepDayRules
 import com.example.domain.SampleDataRules
@@ -209,6 +212,58 @@ class DataSafetyRulesTest {
     }
 
     @Test
+    fun editLoggedWorkout_renamedOrAddedExerciseResolvesWeightType_unchangedKeepsSavedLoadType() {
+        val original = CompletedWorkout(
+            id = "cw-loadtype-edit",
+            routineId = null,
+            routineName = "Upper",
+            startedAt = "2026-10-10T10:00:00Z",
+            completedAt = "2026-10-10T10:45:00Z",
+            completedAtMs = 1_760_000_000_000L,
+            durationSeconds = 2700,
+            totalVolume = 1200,
+            unit = WeightUnit.LB,
+            exercises = listOf(
+                CompletedExercise(
+                    name = "Barbell Bench Press",
+                    loadType = LoadType.STANDARD,
+                    sets = listOf(CompletedSet(weight = 40.0, reps = 10))
+                ),
+                // Legacy dumbbell history logged as STANDARD total weight: must stay STANDARD if name is unchanged.
+                CompletedExercise(
+                    name = "Dumbbell Curl",
+                    loadType = LoadType.STANDARD,
+                    sets = listOf(CompletedSet(weight = 60.0, reps = 10))
+                )
+            )
+        )
+
+        val overrides = LoadTypeRules.withOverride(emptyMap(), "Walking Lunges", LoadType.PER_HAND)
+        val draft = HistoryWorkoutEditRules.fromCompletedWorkout(original)
+        val edited = draft.copy(
+            exercises = listOf(
+                // Renamed -> resolves Dumbbell Bench Press to PER_HAND (40 lb x 10 x 2 = 800)
+                draft.exercises[0].copy(name = "Dumbbell Bench Press"),
+                // Unchanged name -> preserves saved LoadType.STANDARD (60 lb x 10 = 600)
+                draft.exercises[1],
+                // Newly added exercise -> resolves via settings override to PER_HAND (25 lb x 10 x 2 = 500)
+                EditableCompletedExercise(
+                    id = "he-new",
+                    name = "Walking Lunges",
+                    sets = listOf(EditableCompletedSet(id = "hs-new", weightText = "25", repsText = "10"))
+                )
+            )
+        )
+
+        val updated = HistoryWorkoutEditRules.applyEdit(edited, overrides)!!
+        assertEquals(LoadType.PER_HAND, updated.exercises[0].loadType)
+        assertEquals(LoadType.STANDARD, updated.exercises[1].loadType)
+        assertEquals(LoadType.PER_HAND, updated.exercises[2].loadType)
+        // 800 (renamed per-hand) + 600 (unchanged legacy standard) + 500 (new override per-hand)
+        assertEquals(800 + 600 + 500, updated.totalVolume)
+    }
+
+    @Test
     fun viewModel_saveEditedHistoryWorkout_persistsAndRegistersNewCustomExerciseName() = runTest(testDispatcher) {
         val repo = InMemoryDataSource()
         val orig = CompletedWorkout(
@@ -365,6 +420,56 @@ class DataSafetyRulesTest {
         assertEquals(2, replacePlan.routinesToSave.size)
         assertEquals(1, replacePlan.plansToSave.count { it.isActive })
         assertEquals(WeightUnit.KG, replacePlan.settingsToSave?.unit)
+    }
+
+    @Test
+    fun backupImportReplace_keepsThisPhonesAutoBackupSettingsWhileImportingOtherSettings() {
+        val currentSettings = AppSettings(
+            unit = WeightUnit.LB,
+            defaultRestSeconds = 90,
+            soundEnabled = true,
+            autoBackupEnabled = true,
+            autoBackupFolderUri = "content://com.android.externalstorage.documents/tree/primary%3ARepDayBackups",
+            lastAutoBackupMs = 1_764_000_000_000L
+        )
+        val backupSettings = AppSettings(
+            unit = WeightUnit.KG,
+            defaultRestSeconds = 120,
+            soundEnabled = false,
+            autoBackupEnabled = false,
+            autoBackupFolderUri = null,
+            lastAutoBackupMs = 0L
+        )
+        val json = RepDayBackupRules.encodeBackupJson(
+            routines = emptyList(),
+            plans = emptyList(),
+            history = emptyList(),
+            customExercises = emptyList(),
+            settings = backupSettings
+        )
+        val valid = RepDayBackupRules.parseAndValidateBackupJson(json) as BackupValidationResult.Valid
+
+        val plan = RepDayBackupRules.planBackupImport(
+            mode = BackupImportMode.REPLACE,
+            backup = valid.backup,
+            existingRoutines = emptyList(),
+            existingPlans = emptyList(),
+            existingHistory = emptyList(),
+            existingCustomExercises = emptyList(),
+            currentSettings = currentSettings
+        )
+
+        val saved = plan.settingsToSave
+        assertNotNull(saved)
+        saved!!
+        // Phone's auto-backup settings stay untouched
+        assertTrue(saved.autoBackupEnabled)
+        assertEquals(currentSettings.autoBackupFolderUri, saved.autoBackupFolderUri)
+        assertEquals(currentSettings.lastAutoBackupMs, saved.lastAutoBackupMs)
+        // Other settings come from the backup
+        assertEquals(WeightUnit.KG, saved.unit)
+        assertEquals(120, saved.defaultRestSeconds)
+        assertFalse(saved.soundEnabled)
     }
 
     @Test

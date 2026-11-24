@@ -349,7 +349,7 @@ class RepDayPerformanceAndMigrationTest {
                 for (field in expectedFields) {
                     val colName = field["columnName"] as String
                     val affinity = field["affinity"] as String
-                    val notNull = field["notNull"] as Boolean
+                    val notNull = (field["notNull"] as? Boolean) ?: false
                     val actual = actualByName[colName]
                     assertNotNull("Missing column $tableName.$colName after migration", actual)
                     assertEquals("Affinity mismatch for $tableName.$colName", affinity, actual!![2])

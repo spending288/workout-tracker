@@ -100,6 +100,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
@@ -253,6 +254,7 @@ fun ActiveWorkoutScreen(
         knownExerciseIds = currentIds.toSet()
     }
     var isReorderMode by remember { mutableStateOf(false) }
+    var openEffortSetId by remember(workout.id) { mutableStateOf<String?>(null) }
     var setEditTarget by remember { mutableStateOf<SetEditTarget?>(null) }
     var showAddExerciseSheet by remember { mutableStateOf(false) }
     var swapTargetExercise by remember { mutableStateOf<ActiveExercise?>(null) }
@@ -624,7 +626,10 @@ fun ActiveWorkoutScreen(
                                 }
                                 if (workout.exercises.size > 1) {
                                     Surface(
-                                        onClick = { isReorderMode = !isReorderMode },
+                                        onClick = {
+                                            openEffortSetId = null
+                                            isReorderMode = !isReorderMode
+                                        },
                                         shape = CircleShape,
                                         color = if (isReorderMode) colors.accent else colors.surface,
                                         border = BorderStroke(1.dp, if (isReorderMode) colors.accent else colors.border),
@@ -680,11 +685,14 @@ fun ActiveWorkoutScreen(
                                 bodyWeightKnown = sessionBodyWeight != null,
                                 onSetLoadType = { type -> onSetLoadType(exercise.name, type) },
                                 isExpanded = isExpanded,
+                                openEffortSetId = openEffortSetId,
+                                onOpenEffortSetChange = { openEffortSetId = it },
                                 onToggleExpand = { expandedExercises[exercise.id] = !isExpanded },
                                 onOpenPlatesForExercise = { seed -> onOpenPlates(seed) },
                                 onSwap = { swapTargetExercise = exercise },
                                 onCycleRest = { onCycleExerciseRest(exercise.id) },
                                 onEditSetOptions = { setIdx, set ->
+                                    openEffortSetId = null
                                     dismissKeyboard()
                                     setEditTarget = SetEditTarget(
                                         exerciseId = exercise.id,
@@ -696,6 +704,7 @@ fun ActiveWorkoutScreen(
                                     )
                                 },
                                 onSetRpe = { setId, rpe ->
+                                    openEffortSetId = null
                                     dismissKeyboard()
                                     onSetRpe(exercise.id, setId, rpe, false)
                                 },
@@ -703,6 +712,7 @@ fun ActiveWorkoutScreen(
                                 onUpdateWeight = { setId, w -> onUpdateWeight(exercise.id, setId, w) },
                                 onUpdateReps = { setId, r -> onUpdateReps(exercise.id, setId, r) },
                                 onToggleDone = { setId, prevSet, prevUnit ->
+                                    openEffortSetId = null
                                     dismissKeyboard()
                                     val justCompletedExercise = onToggleSetDone(exercise.id, setId, prevSet, prevUnit)
                                     if (justCompletedExercise) {
@@ -1137,6 +1147,8 @@ private fun ActiveExerciseCard(
     sessionUnit: WeightUnit,
     settings: AppSettings,
     isExpanded: Boolean,
+    openEffortSetId: String?,
+    onOpenEffortSetChange: (String?) -> Unit,
     onToggleExpand: () -> Unit,
     onOpenPlatesForExercise: (Double?) -> Unit,
     onSwap: () -> Unit,
@@ -1165,7 +1177,6 @@ private fun ActiveExerciseCard(
         settings.effortScale
     )
     val exRest = exercise.restSeconds ?: settings.defaultRestSeconds
-    var openEffortSetId by remember(exercise.id) { mutableStateOf<String?>(null) }
     val cardFocusManager = LocalFocusManager.current
 
     val prevConverted = prevSession != null && prevSession.unit != sessionUnit
@@ -1457,6 +1468,7 @@ private fun ActiveExerciseCard(
                                     placeholderColor = colors.textMuted,
                                     borderColor = if (set.completed) colors.ok.copy(alpha = 0.45f) else colors.border,
                                     onValueChange = { onUpdateWeight(set.id, it) },
+                                    onFocus = { onOpenEffortSetChange(null) },
                                     modifier = Modifier
                                         .weight(1.3f)
                                         .height(46.dp)
@@ -1480,6 +1492,7 @@ private fun ActiveExerciseCard(
                                     placeholderColor = colors.textMuted,
                                     borderColor = if (set.completed) colors.ok.copy(alpha = 0.45f) else colors.border,
                                     onValueChange = { onUpdateReps(set.id, it) },
+                                    onFocus = { onOpenEffortSetChange(null) },
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(46.dp)
@@ -1502,7 +1515,7 @@ private fun ActiveExerciseCard(
                                         .clickable {
                                             // Close the keyboard so the effort chips aren't hidden behind it.
                                             cardFocusManager.clearFocus()
-                                            openEffortSetId = if (isEffortOpen) null else set.id
+                                            onOpenEffortSetChange(if (isEffortOpen) null else set.id)
                                         }
                                         .testTag("set_rpe_${set.id}"),
                                     contentAlignment = Alignment.Center
@@ -1533,7 +1546,10 @@ private fun ActiveExerciseCard(
                                             if (set.completed) colors.ok else colors.borderStrong,
                                             RoundedCornerShape(12.dp)
                                         )
-                                        .clickable { onToggleDone(set.id, prevSet, prevSession?.unit) }
+                                        .clickable {
+                                            onOpenEffortSetChange(null)
+                                            onToggleDone(set.id, prevSet, prevSession?.unit)
+                                        }
                                         .testTag("set_done_${set.id}"),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -1573,11 +1589,13 @@ private fun ActiveExerciseCard(
                                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                                             color = colors.textSecondary
                                         )
-                                        Text(
-                                            text = "Tap again to clear",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.textMuted
-                                        )
+                                        if (set.rpe != null) {
+                                            Text(
+                                                text = "Tap selected to clear",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = colors.textMuted
+                                            )
+                                        }
                                     }
                                     EffortChipRow(
                                         scale = settings.effortScale,
@@ -1586,6 +1604,7 @@ private fun ActiveExerciseCard(
                                         onSelectRpe = { next ->
                                             FeedbackUtils.triggerLightTick(context)
                                             onSetRpe(set.id, next)
+                                            onOpenEffortSetChange(null)
                                         },
                                         showDescription = true,
                                         testTagPrefix = "inline_effort_${set.id}"
@@ -1684,6 +1703,7 @@ private fun CompactNumericCell(
     placeholderColor: Color,
     borderColor: Color,
     onValueChange: (String) -> Unit,
+    onFocus: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -1716,7 +1736,9 @@ private fun CompactNumericCell(
             keyboardOptions = KeyboardOptions(
                 keyboardType = if (isDecimal) KeyboardType.Decimal else KeyboardType.Number
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { if (it.isFocused) onFocus() }
         )
     }
 }

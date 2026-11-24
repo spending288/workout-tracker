@@ -23,8 +23,10 @@ import com.example.domain.RestTimerRules
 import com.example.domain.SampleDataRules
 import com.example.ui.viewmodel.RepDayViewModel
 import com.example.ui.viewmodel.WorkoutPlatformHooks
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -386,6 +388,7 @@ class ActiveWorkoutViewModelTest {
 
         uiCollector.cancel()
         elapsedCollector.cancel()
+        vm.viewModelScope.cancel()
     }
 
     @Test

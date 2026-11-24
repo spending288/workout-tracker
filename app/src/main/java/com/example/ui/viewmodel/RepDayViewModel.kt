@@ -1525,7 +1525,8 @@ class RepDayViewModel(
                     existingRoutines = _routines.value,
                     existingPlans = _plans.value,
                     existingHistory = _history.value,
-                    existingCustomExercises = _customExercises.value
+                    existingCustomExercises = _customExercises.value,
+                    currentSettings = _settings.value
                 )
             }
             if (mode == BackupImportMode.REPLACE) {

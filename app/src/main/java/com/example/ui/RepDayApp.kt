@@ -508,6 +508,7 @@ fun RepDayApp(
                     workout = workout,
                     exerciseLibrary = state.exerciseLibrary,
                     effortScale = state.settings.effortScale,
+                    exerciseLoadTypes = state.settings.exerciseLoadTypes,
                     onSave = viewModel::saveEditedHistoryWorkout,
                     onDismiss = viewModel::closeEditHistoryWorkout
                 )
