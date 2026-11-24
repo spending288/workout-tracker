@@ -7,6 +7,7 @@ import com.example.data.model.CompletedExercise
 import com.example.data.model.CompletedSet
 import com.example.data.model.CompletedWorkout
 import com.example.data.model.EffortScale
+import com.example.data.model.LoadType
 import com.example.data.model.PauseSpan
 import com.example.data.model.PlanBlock
 import com.example.data.model.PlannedSet
@@ -235,31 +236,25 @@ object RepDayRules {
         return toAdd
     }
 
+    /**
+     * Exercise suggestions for pickers. Tolerates small typos ("bech" finds Bench Press) and,
+     * when [usage] is given, puts recently and frequently logged exercises first.
+     */
     fun searchExercises(
         query: String,
         library: List<String>,
         excludeNames: Set<String> = emptySet(),
         limit: Int = 8,
-        omitExactMatch: Boolean = true
+        omitExactMatch: Boolean = true,
+        usage: Map<String, ExerciseUsage> = emptyMap(),
+        nowMs: Long = System.currentTimeMillis()
     ): List<String> {
         val q = exerciseKey(query)
         val excludedKeys = excludeNames.map { exerciseKey(it) }.toSet()
         val available = library.filter { !excludedKeys.contains(exerciseKey(it)) }
-        if (q.isEmpty()) {
-            return available.take(limit)
-        }
-        val prefixMatches = ArrayList<String>()
-        val substringMatches = ArrayList<String>()
-        for (item in available) {
-            val key = exerciseKey(item)
-            if (omitExactMatch && key == q) continue
-            if (key.startsWith(q)) {
-                prefixMatches.add(item)
-            } else if (key.contains(q)) {
-                substringMatches.add(item)
-            }
-        }
-        return (prefixMatches + substringMatches).take(limit)
+        val ranked = ExerciseSearchRules.rank(query, available, usage, nowMs)
+        val withoutExact = if (omitExactMatch && q.isNotEmpty()) ranked.filter { exerciseKey(it) != q } else ranked
+        return withoutExact.take(limit)
     }
 
     private val movementGroups: List<List<String>> = listOf(
@@ -1568,24 +1563,34 @@ object RepDayRules {
         )
     }
 
-    fun computeLiveVolume(workout: ActiveWorkout): Int {
+    /**
+     * Volume of completed sets so far. Each exercise's weight type decides how the typed weight
+     * counts (per-hand ×2, bodyweight + added, etc.). [bodyWeight] is in the workout's unit.
+     */
+    fun computeLiveVolume(
+        workout: ActiveWorkout,
+        loadTypes: Map<String, LoadType> = emptyMap(),
+        bodyWeight: Double? = null
+    ): Int {
         var sum = 0.0
         for (ex in workout.exercises) {
+            val type = LoadTypeRules.resolve(ex.name, loadTypes)
             for (s in ex.sets) {
                 if (!s.completed) continue
                 val w = s.weight.toDoubleOrNull() ?: 0.0
                 val r = s.reps.toIntOrNull() ?: 0
-                sum += w * r
+                sum += LoadTypeRules.setVolume(w, r, type, bodyWeight)
             }
         }
         return sum.roundToInt()
     }
 
-    fun computeCompletedVolume(exercises: List<CompletedExercise>): Int {
+    /** Volume of logged history. Older entries have no weight type and count as typed. */
+    fun computeCompletedVolume(exercises: List<CompletedExercise>, bodyWeight: Double? = null): Int {
         var sum = 0.0
         for (ex in exercises) {
             for (s in ex.sets) {
-                sum += s.weight * s.reps
+                sum += LoadTypeRules.setVolume(s.weight, s.reps, ex.loadType, bodyWeight)
             }
         }
         return sum.roundToInt()

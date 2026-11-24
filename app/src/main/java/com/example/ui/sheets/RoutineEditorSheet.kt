@@ -61,17 +61,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.EffortScale
+import com.example.data.model.LoadType
 import com.example.data.model.PlannedSet
 import com.example.data.model.Routine
 import com.example.data.model.RoutineExercise
 import com.example.data.model.SetTag
 import com.example.data.model.WorkingSubTag
+import com.example.domain.ExerciseUsage
+import com.example.domain.LoadTypeRules
 import com.example.domain.RepDayRules
 import com.example.ui.components.RepDayConfirmDialog
 import com.example.ui.components.RestPickerInline
@@ -105,10 +109,15 @@ fun RoutineEditorSheet(
     exerciseLibrary: List<String>,
     customExercises: List<String>,
     onSave: (Routine) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    exerciseUsage: Map<String, ExerciseUsage> = emptyMap(),
+    loadTypes: Map<String, LoadType> = emptyMap(),
+    onSetLoadType: (exerciseName: String, type: LoadType) -> Unit = { _, _ -> }
 ) {
     val colors = LocalRepDayColors.current
     val initial = request.initialRoutine
+    // Weight type choices made in this editor, by exercise row id. Applied only when saving.
+    val pendingLoadTypes = remember(request) { mutableStateMapOf<String, LoadType>() }
 
     var name by remember(request) { mutableStateOf(initial?.name ?: request.prefilledName ?: "") }
     var focus by remember(request) { mutableStateOf(initial?.focus ?: "") }
@@ -154,7 +163,9 @@ fun RoutineEditorSheet(
     }
 
     val initialSignature = remember(request) { snapshotSignature(name, focus, description, exercises) }
-    val isDirty = request.isDuplicateDraft || snapshotSignature(name, focus, description, exercises) != initialSignature
+    val isDirty = request.isDuplicateDraft ||
+        snapshotSignature(name, focus, description, exercises) != initialSignature ||
+        pendingLoadTypes.isNotEmpty()
 
     var showDiscardDialog by remember { mutableStateOf(false) }
 
@@ -333,7 +344,9 @@ fun RoutineEditorSheet(
                     }
                     val suggestions = remember(ex.name, exerciseLibrary, focusedExerciseId) {
                         if (focusedExerciseId == ex.id || ex.name.isNotBlank()) {
-                            RepDayRules.searchExercises(ex.name, exerciseLibrary, limit = 8, omitExactMatch = true)
+                            RepDayRules.searchExercises(
+                                ex.name, exerciseLibrary, limit = 8, omitExactMatch = true, usage = exerciseUsage
+                            )
                         } else emptyList()
                     }
                     val isBrandNew = ex.name.trim().isNotEmpty() && !RepDayRules.isKnownInLibrary(ex.name, customExercises)
@@ -645,11 +658,22 @@ fun RoutineEditorSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = if (isPerSetExpanded) "Hide per-set setup" else "Expand sets",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.accentSoftFg
-                                )
+                                Column(modifier = Modifier.weight(1f, fill = false)) {
+                                    Text(
+                                        text = if (isPerSetExpanded) "Hide advanced" else "Advanced",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colors.accentSoftFg
+                                    )
+                                    if (!isPerSetExpanded) {
+                                        Text(
+                                            text = "Weight type, set types, per-set targets & rest",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.textMuted,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -674,6 +698,45 @@ fun RoutineEditorSheet(
                             // Expanded 5-Column Per-Set Table
                             AnimatedVisibility(visible = isPerSetExpanded) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    // Weight type for this exercise (saved per exercise name, used everywhere)
+                                    val currentLoadType = pendingLoadTypes[ex.id]
+                                        ?: LoadTypeRules.resolve(ex.name, loadTypes)
+                                    Text("Weight type", style = MaterialTheme.typography.labelSmall, color = colors.textMuted)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(colors.surface)
+                                            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                                            .padding(3.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        LoadType.entries.forEach { option ->
+                                            val selected = option == currentLoadType
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .heightIn(min = 36.dp)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(if (selected) colors.accent else Color.Transparent)
+                                                    .clickable { pendingLoadTypes[ex.id] = option }
+                                                    .testTag("editor_load_type_${option.name.lowercase()}_$exIdx"),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = LoadTypeRules.shortLabel(option),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (selected) colors.accentFg else colors.textSecondary,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = currentLoadType.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.textMuted
+                                    )
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1072,6 +1135,11 @@ fun RoutineEditorSheet(
                             createdAtMs = existingCreatedMs,
                             updatedAtMs = nowMs
                         )
+                        // Save weight type choices for exercises still in the routine.
+                        exercises.forEach { e ->
+                            val chosen = pendingLoadTypes[e.id]
+                            if (chosen != null && e.name.isNotBlank()) onSetLoadType(e.name, chosen)
+                        }
                         onSave(result)
                     },
                     enabled = canSave,

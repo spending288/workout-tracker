@@ -206,6 +206,8 @@ class RestTimerRulesTest {
         assertFalse(parsed.soundEnabled)
         // New Phase 1 preferences preserve backward-compatible defaults
         assertTrue(parsed.vibrateOnRestEnd)
-        assertFalse(parsed.keepScreenOnDuringWorkout)
+        // Screen-on during workouts is now on by default when the saved settings don't say otherwise.
+        assertTrue(parsed.keepScreenOnDuringWorkout)
+        assertFalse(parsed.screenOnPromptShown)
     }
 }

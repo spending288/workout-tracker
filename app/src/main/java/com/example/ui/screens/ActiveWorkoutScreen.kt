@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -52,6 +53,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.FlashOn
@@ -59,12 +61,15 @@ import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -113,12 +118,18 @@ import com.example.data.model.ActiveExercise
 import com.example.data.model.ActiveWorkout
 import com.example.data.model.AppSettings
 import com.example.data.model.CompletedSet
+import com.example.data.model.CompletedWorkout
+import com.example.data.model.LoadType
 import com.example.data.model.EffortScale
 import com.example.data.model.SetTag
 import com.example.data.model.WeightUnit
 import com.example.data.model.WorkingSubTag
 import com.example.data.model.WorkoutSet
 import com.example.domain.PreviousExerciseSession
+import com.example.domain.PersonalBestRules
+import com.example.domain.FinishWorkoutRules
+import com.example.domain.ExerciseUsage
+import com.example.domain.LoadTypeRules
 import com.example.domain.RepDayRules
 import com.example.ui.components.EffortChipRow
 import com.example.ui.components.RepDayConfirmDialog
@@ -145,6 +156,8 @@ private data class SetEditTarget(
 fun ActiveWorkoutScreen(
     workout: ActiveWorkout,
     lastSessionByExercise: Map<String, PreviousExerciseSession>,
+    history: List<CompletedWorkout> = emptyList(),
+    exerciseUsage: Map<String, ExerciseUsage> = emptyMap(),
     exerciseLibrary: List<String>,
     customExercises: List<String>,
     settings: AppSettings,
@@ -175,7 +188,9 @@ fun ActiveWorkoutScreen(
     onRemoveExercise: (exerciseId: String) -> Unit,
     onUpdateNotes: (String) -> Unit,
     onFinishWorkout: (notes: String, saveAsRoutine: Boolean, newRoutineName: String) -> Unit,
-    onDiscardWorkout: () -> Unit
+    onDiscardWorkout: () -> Unit,
+    onSetLoadType: (exerciseName: String, type: LoadType) -> Unit = { _, _ -> },
+    onAnswerScreenOnPrompt: (keepOn: Boolean) -> Unit = {}
 ) {
     val colors = LocalRepDayColors.current
     val context = LocalContext.current
@@ -207,6 +222,19 @@ fun ActiveWorkoutScreen(
 
     BackHandler(onBack = onMinimize)
 
+    // One-time question for people who had "keep screen on" off before it became the default.
+    if (!settings.keepScreenOnDuringWorkout && !settings.screenOnPromptShown) {
+        RepDayConfirmDialog(
+            title = "Keep the screen on during workouts?",
+            body = "Then you won't need to unlock your phone between sets. You can change this any time in Settings.",
+            confirmLabel = "Keep screen on",
+            dismissLabel = "Not now",
+            isDestructive = false,
+            onConfirm = { onAnswerScreenOnPrompt(true) },
+            onDismiss = { onAnswerScreenOnPrompt(false) }
+        )
+    }
+
     // Routine exercises start collapsed; newly added mid-workout exercises auto-expand
     val expandedExercises = remember(workout.id) { mutableStateMapOf<String, Boolean>() }
     var knownExerciseIds by remember(workout.id) {
@@ -235,7 +263,10 @@ fun ActiveWorkoutScreen(
 
     val totalSets = remember(workout) { workout.exercises.sumOf { it.sets.size } }
     val completedSets = remember(workout) { workout.exercises.sumOf { ex -> ex.sets.count { it.completed } } }
-    val liveVolume = remember(workout) { RepDayRules.computeLiveVolume(workout) }
+    val sessionBodyWeight = LoadTypeRules.bodyWeightIn(settings.bodyWeightKg, sessionUnit)
+    val liveVolume = remember(workout, settings.exerciseLoadTypes, sessionBodyWeight) {
+        RepDayRules.computeLiveVolume(workout, settings.exerciseLoadTypes, sessionBodyWeight)
+    }
 
     if (showDiscardConfirm) {
         RepDayConfirmDialog(
@@ -274,6 +305,7 @@ fun ActiveWorkoutScreen(
         AddExerciseMidWorkoutSheet(
             exerciseLibrary = exerciseLibrary,
             customExercises = customExercises,
+            exerciseUsage = exerciseUsage,
             currentExerciseNames = workout.exercises.map { it.name }.toSet(),
             onAdd = { name ->
                 onAddExercise(name)
@@ -395,6 +427,16 @@ fun ActiveWorkoutScreen(
         val defaultLiveName = remember(workout.startedAt) {
             RepDayRules.formatLiveWorkoutDefaultName(workout.startedAt)
         }
+        // What will be saved, for a last look, plus any personal records against earlier history.
+        val finishPreview = remember(workout, settings.exerciseLoadTypes) {
+            FinishWorkoutRules.buildCompletedExercises(workout, settings.exerciseLoadTypes)
+        }
+        val finishReview = remember(finishPreview, sessionUnit) {
+            finishPreview.map { it.name to FinishWorkoutRules.describeSets(it, sessionUnit) }
+        }
+        val finishRecords = remember(finishPreview, history, sessionUnit) {
+            PersonalBestRules.find(finishPreview, sessionUnit, history).map { PersonalBestRules.describe(it) }
+        }
         FinishWorkoutSheet(
             isLiveWorkout = isLiveWorkout,
             defaultLiveWorkoutName = defaultLiveName,
@@ -403,6 +445,8 @@ fun ActiveWorkoutScreen(
             uncheckedSets = (totalSets - completedSets).coerceAtLeast(0),
             totalVolume = liveVolume,
             unitLabel = sessionUnit.label,
+            exerciseReview = finishReview,
+            personalRecords = finishRecords,
             initialNotes = workout.notes,
             onKeepLifting = { showFinishSheet = false },
             onSave = { notes, saveAsRoutine, newRoutineName ->
@@ -632,6 +676,9 @@ fun ActiveWorkoutScreen(
                                 prevSession = prevSession,
                                 sessionUnit = sessionUnit,
                                 settings = settings,
+                                loadType = LoadTypeRules.resolve(exercise.name, settings.exerciseLoadTypes),
+                                bodyWeightKnown = sessionBodyWeight != null,
+                                onSetLoadType = { type -> onSetLoadType(exercise.name, type) },
                                 isExpanded = isExpanded,
                                 onToggleExpand = { expandedExercises[exercise.id] = !isExpanded },
                                 onOpenPlatesForExercise = { seed -> onOpenPlates(seed) },
@@ -1101,7 +1148,10 @@ private fun ActiveExerciseCard(
     onUpdateReps: (setId: String, reps: String) -> Unit,
     onToggleDone: (setId: String, prevSet: CompletedSet?, prevUnit: WeightUnit?) -> Unit,
     onAddSet: () -> Unit,
-    onRemoveSet: () -> Unit
+    onRemoveSet: () -> Unit,
+    loadType: LoadType = LoadType.STANDARD,
+    bodyWeightKnown: Boolean = false,
+    onSetLoadType: (LoadType) -> Unit = {}
 ) {
     val colors = LocalRepDayColors.current
     val context = LocalContext.current
@@ -1121,11 +1171,11 @@ private fun ActiveExerciseCard(
     val prevConverted = prevSession != null && prevSession.unit != sessionUnit
     val prevApprox = if (prevConverted) "≈" else ""
 
-    val condensedPrev = remember(prevSession, sessionUnit) {
+    val condensedPrev = remember(prevSession, sessionUnit, loadType) {
         val top = prevSession?.sets?.maxByOrNull { it.weight }
         top?.let {
             val wTxt = RepDayRules.formatConvertedWeight(it.weight, prevSession.unit, sessionUnit)
-            "Last $prevApprox$wTxt${sessionUnit.label}×${it.reps}"
+            "Last $prevApprox${LoadTypeRules.formatCompactWithUnit(wTxt, it.weight, sessionUnit, loadType)}×${it.reps}"
         }
     }
 
@@ -1237,7 +1287,7 @@ private fun ActiveExerciseCard(
                                     else " @${RepDayRules.formatRpeNumber(it)}"
                                 } ?: ""
                                 val wTxt = RepDayRules.formatConvertedWeight(s.weight, prevSession.unit, sessionUnit)
-                                "$tagCode$prevApprox$wTxt×${s.reps}$effort"
+                                "$tagCode$prevApprox${LoadTypeRules.formatCompactWeight(wTxt, s.weight, loadType)}×${s.reps}$effort"
                             }
                             val loggedSuffix = if (prevConverted) " (logged in ${prevSession.unit.label})" else ""
                             "Last ($rel): $setsTxt ${sessionUnit.label}$loggedSuffix"
@@ -1249,15 +1299,66 @@ private fun ActiveExerciseCard(
                             style = MonoTabularStyle.copy(fontSize = 11.sp, color = colors.textMuted)
                         )
 
+                        if (LoadTypeRules.needsBodyWeight(loadType) && !bodyWeightKnown) {
+                            Text(
+                                text = "Add your body weight in Settings to count this exercise in volume.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textMuted
+                            )
+                        }
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            SmallActionPill(
-                                label = "Plates",
-                                icon = Icons.Rounded.FitnessCenter,
-                                onClick = { onOpenPlatesForExercise(seedWeightForPlates) }
-                            )
+                            // Weight type: how the number in the weight boxes is read
+                            Box {
+                                var showLoadTypeMenu by remember { mutableStateOf(false) }
+                                SmallActionPill(
+                                    label = LoadTypeRules.shortLabel(loadType),
+                                    icon = Icons.Rounded.Tune,
+                                    onClick = { showLoadTypeMenu = true }
+                                )
+                                DropdownMenu(
+                                    expanded = showLoadTypeMenu,
+                                    onDismissRequest = { showLoadTypeMenu = false }
+                                ) {
+                                    LoadType.entries.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Column {
+                                                    Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                                                    Text(
+                                                        option.description,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = colors.textSecondary
+                                                    )
+                                                }
+                                            },
+                                            leadingIcon = {
+                                                if (option == loadType) {
+                                                    Icon(Icons.Rounded.Check, null, tint = colors.accent)
+                                                } else {
+                                                    Spacer(Modifier.size(24.dp))
+                                                }
+                                            },
+                                            onClick = {
+                                                showLoadTypeMenu = false
+                                                onSetLoadType(option)
+                                            },
+                                            modifier = Modifier.testTag("load_type_${option.name.lowercase()}_${exercise.id}")
+                                        )
+                                    }
+                                }
+                            }
+                            if (loadType == LoadType.STANDARD) {
+                                SmallActionPill(
+                                    label = "Plates",
+                                    icon = Icons.Rounded.FitnessCenter,
+                                    onClick = { onOpenPlatesForExercise(seedWeightForPlates) }
+                                )
+                            }
                             SmallActionPill(
                                 label = "Swap",
                                 icon = Icons.Rounded.SwapHoriz,
@@ -1271,7 +1372,8 @@ private fun ActiveExerciseCard(
                         }
                     }
 
-                    // 6-Column Header: Set | Prev | lb/kg | Reps | RPE/RIR | Done
+                    // 5-Column Header: Set | weight (with unit and weight type) | Reps | RPE/RIR | Done.
+                    // Last session's numbers show as placeholders in the boxes and in the line above.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1280,9 +1382,8 @@ private fun ActiveExerciseCard(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         GridHeaderLabel("Set", Modifier.width(46.dp))
-                        GridHeaderLabel("Prev", Modifier.weight(1.1f))
-                        GridHeaderLabel(sessionUnit.label, Modifier.weight(1f))
-                        GridHeaderLabel("Reps", Modifier.weight(0.9f))
+                        GridHeaderLabel(LoadTypeRules.weightColumnLabel(sessionUnit, loadType), Modifier.weight(1.3f))
+                        GridHeaderLabel("Reps", Modifier.weight(1f))
                         GridHeaderLabel(settings.effortScale.label, Modifier.width(44.dp))
                         GridHeaderLabel("Done", Modifier.width(46.dp))
                     }
@@ -1335,68 +1436,21 @@ private fun ActiveExerciseCard(
                                     )
                                 }
 
-                                // 2. Prev Cell (tappable auto-fill, converted to session unit)
+                                // Last session's weight for this set, converted to this workout's unit.
+                                // Shown as the placeholder; tapping Done on a blank set fills it in.
                                 val prevUnit = prevSession?.unit ?: sessionUnit
-                                val prevDisplayWeight = prevSet?.let {
-                                    RepDayRules.formatConvertedWeight(it.weight, prevUnit, sessionUnit)
-                                }
                                 val prevInputWeight = prevSet?.let {
                                     RepDayRules.convertWeightForInput(it.weight, prevUnit, sessionUnit)
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1.1f)
-                                        .heightIn(min = 46.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable(enabled = prevSet != null) {
-                                            if (prevSet != null && prevInputWeight != null) {
-                                                onFillFromPrev(set.id, prevInputWeight, prevSet.reps)
-                                            }
-                                        }
-                                        .padding(horizontal = 2.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (prevSet != null && prevDisplayWeight != null) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(
-                                                text = "$prevApprox$prevDisplayWeight×${prevSet.reps}",
-                                                style = MonoTabularStyle.copy(
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = colors.textSecondary
-                                                ),
-                                                maxLines = 1
-                                            )
-                                            val prevMeta = listOfNotNull(
-                                                RepDayRules.tagShortCode(prevSet.tag, prevSet.workingSubTag),
-                                                prevSet.rpe?.let {
-                                                    if (settings.effortScale == EffortScale.RIR) {
-                                                        RepDayRules.rpeToRirLabel(it, compact = true) + " RIR"
-                                                    } else {
-                                                        "@${RepDayRules.formatRpeNumber(it)}"
-                                                    }
-                                                }
-                                            ).joinToString(" ")
-                                            if (prevMeta.isNotEmpty()) {
-                                                Text(
-                                                    text = prevMeta,
-                                                    style = MonoTabularStyle.copy(fontSize = 9.sp, color = colors.textMuted),
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        Text(
-                                            text = "—",
-                                            style = MonoTabularStyle.copy(fontSize = 12.sp, color = colors.textMuted)
-                                        )
-                                    }
-                                }
+                                val weightPlaceholder = prevInputWeight
+                                    ?.takeIf { !(loadType == LoadType.BODYWEIGHT && it <= 0.0) }
+                                    ?.let { RepDayRules.formatNumber(it) }
+                                    ?: LoadTypeRules.emptyWeightPlaceholder(loadType)
 
                                 // 3. Weight Input
                                 CompactNumericCell(
                                     value = set.weight,
-                                    placeholder = prevInputWeight?.let { RepDayRules.formatNumber(it) } ?: "0",
+                                    placeholder = weightPlaceholder,
                                     isDecimal = true,
                                     bg = inputBg,
                                     textColor = inputTextColor,
@@ -1404,7 +1458,7 @@ private fun ActiveExerciseCard(
                                     borderColor = if (set.completed) colors.ok.copy(alpha = 0.45f) else colors.border,
                                     onValueChange = { onUpdateWeight(set.id, it) },
                                     modifier = Modifier
-                                        .weight(1f)
+                                        .weight(1.3f)
                                         .height(46.dp)
                                         .testTag("set_weight_${set.id}")
                                 )
@@ -1427,7 +1481,7 @@ private fun ActiveExerciseCard(
                                     borderColor = if (set.completed) colors.ok.copy(alpha = 0.45f) else colors.border,
                                     onValueChange = { onUpdateReps(set.id, it) },
                                     modifier = Modifier
-                                        .weight(0.9f)
+                                        .weight(1f)
                                         .height(46.dp)
                                         .testTag("set_reps_${set.id}")
                                 )
@@ -2031,13 +2085,16 @@ private fun AddExerciseMidWorkoutSheet(
     customExercises: List<String>,
     currentExerciseNames: Set<String>,
     onAdd: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    exerciseUsage: Map<String, ExerciseUsage> = emptyMap()
 ) {
     val colors = LocalRepDayColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by remember { mutableStateOf("") }
-    val suggestions = remember(query, exerciseLibrary, currentExerciseNames) {
-        RepDayRules.searchExercises(query, exerciseLibrary, currentExerciseNames, limit = 10, omitExactMatch = true)
+    val suggestions = remember(query, exerciseLibrary, currentExerciseNames, exerciseUsage) {
+        RepDayRules.searchExercises(
+            query, exerciseLibrary, currentExerciseNames, limit = 10, omitExactMatch = true, usage = exerciseUsage
+        )
     }
     val isBrandNew = query.trim().isNotEmpty() && !RepDayRules.isKnownInLibrary(query, customExercises)
 
@@ -2337,7 +2394,9 @@ private fun FinishWorkoutSheet(
     initialNotes: String,
     onKeepLifting: () -> Unit,
     onSave: (notes: String, saveAsRoutine: Boolean, newRoutineName: String) -> Unit,
-    onRequestDiscard: () -> Unit
+    onRequestDiscard: () -> Unit,
+    exerciseReview: List<Pair<String, String>> = emptyList(),
+    personalRecords: List<String> = emptyList()
 ) {
     val colors = LocalRepDayColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -2391,6 +2450,69 @@ private fun FinishWorkoutSheet(
                             style = MonoTabularStyle.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.accent)
                         )
                         Text("Volume", style = MaterialTheme.typography.labelSmall, color = colors.textMuted)
+                    }
+                }
+            }
+
+            if (personalRecords.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = colors.accentSoft.copy(alpha = 0.55f),
+                    border = BorderStroke(1.dp, colors.accent),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("finish_personal_records")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Rounded.EmojiEvents, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                            Text(
+                                text = if (personalRecords.size == 1) "New personal record" else "${personalRecords.size} new personal records",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = colors.text
+                            )
+                        }
+                        personalRecords.forEach { line ->
+                            Text(line, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                        }
+                    }
+                }
+            }
+
+            if (exerciseReview.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = colors.surfaceAlt,
+                    border = BorderStroke(1.dp, colors.border),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("finish_exercise_review")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Check before saving", style = MaterialTheme.typography.titleSmall, color = colors.text)
+                        Text(
+                            "Spot a typo? Tap Keep Lifting to fix it first.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted
+                        )
+                        exerciseReview.forEach { (name, setsLine) ->
+                            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                Text(name, style = MaterialTheme.typography.bodyMedium, color = colors.text)
+                                Text(
+                                    setsLine,
+                                    style = MonoTabularStyle.copy(fontSize = 12.sp, color = colors.textSecondary)
+                                )
+                            }
+                        }
                     }
                 }
             }

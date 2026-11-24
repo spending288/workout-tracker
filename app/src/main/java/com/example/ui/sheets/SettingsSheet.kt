@@ -92,6 +92,9 @@ import com.example.data.model.CustomPalette
 import com.example.data.model.EffortScale
 import com.example.data.model.ThemeMode
 import com.example.data.model.WeightUnit
+import com.example.domain.AutoBackupRules
+import com.example.domain.LoadTypeRules
+import com.example.domain.RepDayRules
 import com.example.domain.SampleDataRules
 import com.example.ui.components.RestPickerInline
 import com.example.ui.theme.LocalRepDayColors
@@ -124,7 +127,12 @@ fun SettingsSheet(
     onExportHistoryCsv: () -> Unit,
     onRestoreSampleRoutines: () -> Unit,
     onEraseAllData: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSetBodyWeight: (Double?) -> Unit = {},
+    autoBackupFolderLabel: String? = null,
+    onChooseAutoBackupFolder: () -> Unit = {},
+    onSetAutoBackupEnabled: (Boolean) -> Unit = {},
+    onBackupNow: () -> Unit = {}
 ) {
     val colors = LocalRepDayColors.current
     val systemDark = isSystemInDarkTheme()
@@ -468,6 +476,43 @@ fun SettingsSheet(
                     }
                 }
 
+                // Body weight (used for bodyweight and assisted exercise volume)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Body Weight", style = MaterialTheme.typography.titleMedium, color = colors.text)
+                    var bodyWeightText by remember(settings.unit) {
+                        mutableStateOf(
+                            LoadTypeRules.bodyWeightIn(settings.bodyWeightKg, settings.unit)
+                                ?.let { RepDayRules.formatNumber(it) } ?: ""
+                        )
+                    }
+                    OutlinedTextField(
+                        value = bodyWeightText,
+                        onValueChange = { raw ->
+                            val cleaned = RepDayRules.sanitizeDecimalInput(raw, maxLength = 6)
+                            bodyWeightText = cleaned
+                            onSetBodyWeight(cleaned.toDoubleOrNull())
+                        },
+                        label = { Text("Body weight (${settings.unit.label})") },
+                        placeholder = { Text("Optional") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.accent,
+                            unfocusedBorderColor = colors.borderStrong,
+                            focusedTextColor = colors.text,
+                            unfocusedTextColor = colors.text
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("setting_body_weight_input")
+                    )
+                    Text(
+                        text = "Used to count bodyweight and assisted exercises (pull-ups, dips) in your volume. Leave blank to count only the added weight.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary
+                    )
+                }
+
                 // Effort Scale (RPE / RIR) + Ask for effort after each set
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Effort Scale", style = MaterialTheme.typography.titleMedium, color = colors.text)
@@ -718,6 +763,100 @@ fun SettingsSheet(
                                 Icon(Icons.Rounded.TableChart, null, tint = colors.accent, modifier = Modifier.size(17.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("Export history as CSV", color = colors.text, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+
+                    // Automatic backups to a folder the user picks
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = colors.surfaceAlt,
+                        border = BorderStroke(1.dp, colors.border),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val hasFolder = !settings.autoBackupFolderUri.isNullOrBlank()
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Automatic backups", style = MaterialTheme.typography.titleSmall, color = colors.text)
+                                    Text(
+                                        text = when {
+                                            !hasFolder -> "Off · Choose a folder to turn on"
+                                            !settings.autoBackupEnabled -> "Off · Folder: ${autoBackupFolderLabel ?: "chosen"}"
+                                            else -> "On · Folder: ${autoBackupFolderLabel ?: "chosen"}"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.textSecondary
+                                    )
+                                }
+                                Switch(
+                                    checked = settings.autoBackupEnabled && hasFolder,
+                                    enabled = hasFolder,
+                                    onCheckedChange = { onSetAutoBackupEnabled(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = colors.accentFg,
+                                        checkedTrackColor = colors.accent
+                                    ),
+                                    modifier = Modifier.testTag("setting_auto_backup_switch")
+                                )
+                            }
+                            Text(
+                                text = "Saves a full backup to that folder after every workout, and once a day when you open the app. Keeps the newest ${AutoBackupRules.KEEP_COUNT}. Nothing leaves your phone unless the folder itself syncs somewhere.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary
+                            )
+                            if (hasFolder) {
+                                Text(
+                                    text = if (settings.lastAutoBackupMs > 0L) {
+                                        "Last automatic backup: " + RepDayRules.formatRelativeDateMs(settings.lastAutoBackupMs)
+                                    } else {
+                                        "No automatic backup yet"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textMuted
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = onChooseAutoBackupFolder,
+                                    shape = CircleShape,
+                                    border = BorderStroke(1.dp, colors.accent),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 44.dp)
+                                        .testTag("auto_backup_choose_folder_button")
+                                ) {
+                                    Text(
+                                        if (hasFolder) "Change folder" else "Choose folder",
+                                        color = colors.text,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = onBackupNow,
+                                    enabled = hasFolder,
+                                    shape = CircleShape,
+                                    border = BorderStroke(1.dp, colors.borderStrong),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 44.dp)
+                                        .testTag("auto_backup_now_button")
+                                ) {
+                                    Text("Back up now", color = colors.text, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                                }
                             }
                         }
                     }

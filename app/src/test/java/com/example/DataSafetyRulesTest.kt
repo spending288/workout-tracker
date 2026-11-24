@@ -394,7 +394,7 @@ class DataSafetyRulesTest {
 
         val csv = RepDayBackupRules.exportHistoryToCsv(listOf(workout))
         val lines = csv.trimEnd().lines()
-        assertEquals("date,workout name,exercise,set number,tag,weight,unit,reps,RPE,RIR,notes", lines[0])
+        assertEquals("date,workout name,exercise,set number,tag,weight,unit,reps,RPE,RIR,notes,weight type,effective load,volume,body weight", lines[0])
         // Row 1: Warm-up, no RPE/RIR, multiline note properly quoted
         assertTrue(csv.contains("2026-10-15T14:55:00Z,\"Push, Day \"\"A\"\"\",Barbell Bench Press,1,Warm-up,135,lb,10,,,\"Felt great, bar moved fast\nNext: add 5 lb\""))
         // Row 2: Top set, RPE 8.5 -> RIR 1.5
