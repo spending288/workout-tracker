@@ -537,6 +537,13 @@ object RepDayRules {
         return chipRpe >= lo - 0.01 && chipRpe <= hi + 0.01
     }
 
+    /**
+     * Whether to show the "How hard?" bar after a set is completed. Only when the setting is on
+     * and the set doesn't already have an effort value (e.g. picked in the set row beforehand).
+     */
+    fun shouldPromptEffortAfterSet(askEffortAfterSet: Boolean, existingRpe: Double?): Boolean =
+        askEffortAfterSet && existingRpe == null
+
     // ---- Weight Unit Conversion Helpers ----
 
     fun convertWeight(value: Double, from: WeightUnit, to: WeightUnit): Double {

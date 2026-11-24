@@ -1084,7 +1084,8 @@ class RepDayViewModel(
             dismissRestTimer()
         } else if (resolved.startRestSeconds != null) {
             startRestTimer(resolved.startRestSeconds, resolved.exerciseName)
-            if (currentSettings.askEffortAfterSet) {
+            // Skip the prompt when an effort value was already chosen for this set.
+            if (RepDayRules.shouldPromptEffortAfterSet(currentSettings.askEffortAfterSet, resolved.currentRpe)) {
                 _localState.update {
                     it.copy(
                         pendingEffortPrompt = EffortPromptTarget(
