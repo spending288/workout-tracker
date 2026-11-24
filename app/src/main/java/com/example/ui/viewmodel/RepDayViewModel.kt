@@ -13,8 +13,8 @@ import com.example.data.local.RestClaimStatus
 import com.example.data.local.RestTimerSnapshot
 import com.example.data.model.ActiveWorkout
 import com.example.data.model.AppSettings
-import com.example.data.model.CompletedExercise
 import com.example.data.model.CompletedSet
+import com.example.data.model.LoadType
 import com.example.data.model.CompletedWorkout
 import com.example.data.model.PlateCalculatorSettings
 import com.example.data.model.Routine
@@ -28,7 +28,12 @@ import com.example.data.model.WorkingSubTag
 import com.example.domain.ActiveWorkoutMutations
 import com.example.domain.BackupImportMode
 import com.example.domain.BackupValidationResult
+import com.example.domain.AutoBackupRules
+import com.example.domain.ExerciseSearchRules
+import com.example.domain.ExerciseUsage
 import com.example.domain.PreviousExerciseSession
+import com.example.domain.LoadTypeRules
+import com.example.domain.FinishWorkoutRules
 import com.example.domain.RepDayBackupRules
 import com.example.domain.RepDayRules
 import com.example.domain.RestCompletionOutcome
@@ -45,6 +50,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -111,6 +117,8 @@ data class RepDayUiState(
     val plans: List<TrainingPlan> = emptyList(),
     val history: List<CompletedWorkout> = emptyList(),
     val lastSessionByExercise: Map<String, PreviousExerciseSession> = emptyMap(),
+    // How often/recently each exercise was logged, keyed by exercise key. Orders exercise search.
+    val exerciseUsage: Map<String, ExerciseUsage> = emptyMap(),
     val customExercises: List<String> = emptyList(),
     val exerciseLibrary: List<String> = emptyList(),
     val settings: AppSettings = AppSettings(),
@@ -204,7 +212,8 @@ class RepDayViewModel(
         val pendingOpenActiveWorkoutFromNotification: Boolean = false,
         val dismissedUnreadableCount: Int = 0,
         val toastMessage: String? = null,
-        val isInitialized: Boolean = false
+        val isInitialized: Boolean = false,
+        val exerciseUsage: Map<String, ExerciseUsage> = emptyMap()
     )
 
     private data class CoreDataBundle(
@@ -242,6 +251,7 @@ class RepDayViewModel(
             plans = core.plans,
             history = core.history,
             lastSessionByExercise = lastByExercise,
+            exerciseUsage = local.exerciseUsage,
             customExercises = core.customExercises,
             exerciseLibrary = RepDayRules.buildUnifiedLibrary(core.customExercises),
             settings = core.settings,
@@ -285,11 +295,18 @@ class RepDayViewModel(
         viewModelScope.launch { repository.plansFlow.collect { _plans.value = it } }
         viewModelScope.launch {
             repository.historyFlow
-                .map { history -> history to RepDayRules.buildLastSessionByExercise(history) }
+                .map { history ->
+                    Triple(
+                        history,
+                        RepDayRules.buildLastSessionByExercise(history),
+                        ExerciseSearchRules.buildUsage(history)
+                    )
+                }
                 .flowOn(computeDispatcher)
-                .collect { (history, lastByExercise) ->
+                .collect { (history, lastByExercise, usage) ->
                     _history.value = history
                     _lastSessionByExercise.value = lastByExercise
+                    _localState.update { it.copy(exerciseUsage = usage) }
                 }
         }
         viewModelScope.launch { repository.customExercisesFlow.collect { _customExercises.value = it } }
@@ -317,6 +334,7 @@ class RepDayViewModel(
                 _activeWorkout.value = savedWorkout
             }
             _localState.update { it.copy(isInitialized = true) }
+            runAutoBackup(force = false, announce = false)
 
             val active = _activeWorkout.value
             if (active != null) {
@@ -1265,27 +1283,13 @@ class RepDayViewModel(
     ) {
         val current = _activeWorkout.value ?: return
         val finalActiveSnapshot = current.copy(notes = notes)
-        val completedExercises = finalActiveSnapshot.exercises.mapNotNull { ex ->
-            val doneSets = ex.sets.filter { it.completed }.map { s ->
-                CompletedSet(
-                    weight = s.weight.toDoubleOrNull() ?: 0.0,
-                    reps = s.reps.toIntOrNull() ?: 0,
-                    tag = s.tag,
-                    workingSubTag = s.workingSubTag,
-                    rpe = s.rpe
-                )
-            }
-            if (doneSets.isEmpty()) null
-            else CompletedExercise(
-                name = ex.name,
-                targetSets = ex.targetSets,
-                repRange = ex.repRange.ifBlank { null },
-                sets = doneSets
-            )
-        }
+        val currentSettings = _settings.value
+        val completedExercises = FinishWorkoutRules.buildCompletedExercises(
+            active = finalActiveSnapshot,
+            loadTypes = currentSettings.exerciseLoadTypes
+        )
         if (completedExercises.isEmpty()) return
 
-        val currentSettings = _settings.value
         val isLiveWorkout = finalActiveSnapshot.routineId == null
         val trimmedRoutineName = newRoutineName.trim()
         val createdRoutine = if (isLiveWorkout && saveAsRoutine && trimmedRoutineName.isNotEmpty()) {
@@ -1307,7 +1311,9 @@ class RepDayViewModel(
 
         val nowMs = clock()
         val durationSec = ((nowMs - finalActiveSnapshot.startedAt) / 1000L).toInt().coerceAtLeast(1)
-        val totalVol = RepDayRules.computeCompletedVolume(completedExercises)
+        val workoutUnit = finalActiveSnapshot.resolvedUnit(currentSettings.unit)
+        val bodyWeightForWorkout = LoadTypeRules.bodyWeightIn(currentSettings.bodyWeightKg, workoutUnit)
+        val totalVol = RepDayRules.computeCompletedVolume(completedExercises, bodyWeightForWorkout)
         val completed = CompletedWorkout(
             id = RepDayRules.completedWorkoutIdForActive(finalActiveSnapshot.id),
             routineId = resolvedRoutineId,
@@ -1317,9 +1323,10 @@ class RepDayViewModel(
             completedAtMs = nowMs,
             durationSeconds = durationSec,
             totalVolume = totalVol,
-            unit = finalActiveSnapshot.resolvedUnit(currentSettings.unit),
+            unit = workoutUnit,
             exercises = completedExercises,
-            notes = notes.trim().ifBlank { null }
+            notes = notes.trim().ifBlank { null },
+            bodyWeight = bodyWeightForWorkout
         )
 
         activeWorkoutDebounceJob?.cancel()
@@ -1365,6 +1372,7 @@ class RepDayViewModel(
                 lastPersistedWorkoutVersion = maxOf(clearedVersion, latestVersion)
             }
             repository.saveRestTimer(emptyRest)
+            runAutoBackup(force = true, announce = false)
         }
     }
 
@@ -1610,6 +1618,76 @@ class RepDayViewModel(
 
     fun updateSettings(settings: AppSettings) {
         mutateSettings { settings }
+    }
+
+    /** Saves how this exercise's weight is entered (total, per hand, bodyweight, assisted). */
+    fun setExerciseLoadType(exerciseName: String, type: LoadType) {
+        mutateSettings {
+            it.copy(exerciseLoadTypes = LoadTypeRules.withOverride(it.exerciseLoadTypes, exerciseName, type))
+        }
+    }
+
+    /** Body weight in the current unit, or null to clear it. Stored in kg. */
+    fun setBodyWeight(value: Double?) {
+        mutateSettings { it.copy(bodyWeightKg = LoadTypeRules.bodyWeightToKg(value, it.unit)) }
+    }
+
+    /** Answer to the one-time "keep the screen on during workouts?" question. */
+    fun answerScreenOnPrompt(keepOn: Boolean) {
+        mutateSettings { it.copy(keepScreenOnDuringWorkout = keepOn, screenOnPromptShown = true) }
+    }
+
+    // ---- Automatic Backups (to a folder the user picked) ----
+
+    fun onAutoBackupFolderChosen(folderUri: String) {
+        mutateSettings { it.copy(autoBackupFolderUri = folderUri, autoBackupEnabled = true) }
+        runAutoBackup(force = true, announce = true)
+    }
+
+    fun setAutoBackupEnabled(enabled: Boolean) {
+        mutateSettings { it.copy(autoBackupEnabled = enabled) }
+        if (enabled) runAutoBackup(force = false, announce = false)
+    }
+
+    fun backUpNow() {
+        runAutoBackup(force = true, announce = true, requireEnabled = false)
+    }
+
+    /**
+     * Writes a full backup to the chosen folder. Runs after each finished workout (force) and at
+     * most once a day on app start. Reads straight from storage so it never saves a half-loaded,
+     * empty snapshot, and skips entirely when there's nothing to back up.
+     */
+    private fun runAutoBackup(force: Boolean, announce: Boolean, requireEnabled: Boolean = true) {
+        val current = _settings.value
+        val folder = current.autoBackupFolderUri
+        if (folder.isNullOrBlank()) return
+        if (requireEnabled && !current.autoBackupEnabled) return
+        val now = clock()
+        if (!force && !AutoBackupRules.isDailyBackupDue(current.autoBackupEnabled, folder, current.lastAutoBackupMs, now)) return
+        viewModelScope.launch {
+            val routines = repository.routinesFlow.first()
+            val plans = repository.plansFlow.first()
+            val history = repository.historyFlow.first()
+            val custom = repository.customExercisesFlow.first()
+            if (routines.isEmpty() && plans.isEmpty() && history.isEmpty()) {
+                if (announce) showToast("Nothing to back up yet")
+                return@launch
+            }
+            val json = RepDayBackupRules.encodeBackupJson(
+                routines = routines,
+                plans = plans,
+                history = history,
+                customExercises = custom,
+                settings = _settings.value,
+                nowMs = now
+            )
+            val ok = platform.writeAutoBackup(folder, AutoBackupRules.fileName(now), json)
+            if (ok) mutateSettings { it.copy(lastAutoBackupMs = now) }
+            if (announce || !ok) {
+                showToast(if (ok) "Backup saved to your folder" else "Automatic backup failed. Choose the folder again in Settings.")
+            }
+        }
     }
 
     fun updateThemeConfig(theme: ThemeConfig) {

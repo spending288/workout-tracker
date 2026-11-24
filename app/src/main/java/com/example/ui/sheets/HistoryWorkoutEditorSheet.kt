@@ -83,6 +83,7 @@ import com.example.domain.EditableCompletedExercise
 import com.example.domain.EditableCompletedSet
 import com.example.domain.HistoryWorkoutEditDraft
 import com.example.domain.HistoryWorkoutEditRules
+import com.example.domain.LoadTypeRules
 import com.example.domain.RepDayRules
 import com.example.ui.components.EffortChipRow
 import com.example.ui.components.RepDayConfirmDialog
@@ -166,7 +167,7 @@ fun HistoryWorkoutEditorSheet(
             ex.sets.sumOf { s ->
                 val w = s.weightText.trim().toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0
                 val r = s.repsText.trim().toIntOrNull()?.coerceAtLeast(0) ?: 0
-                w * r
+                LoadTypeRules.setVolume(w, r, ex.loadType, workout.bodyWeight)
             }
         }.roundToInt()
     }
@@ -509,7 +510,7 @@ fun HistoryWorkoutEditorSheet(
                     HistoryExerciseEditCard(
                         index = exIdx,
                         exercise = exercise,
-                        unitLabel = workout.unit.label,
+                        unitLabel = LoadTypeRules.weightColumnLabel(workout.unit, exercise.loadType),
                         effortScale = effortScale,
                         exerciseLibrary = exerciseLibrary,
                         isSuggestionsOpen = focusedExerciseId == exercise.id,

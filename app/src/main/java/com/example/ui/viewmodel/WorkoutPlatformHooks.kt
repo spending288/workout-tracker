@@ -1,5 +1,6 @@
 package com.example.ui.viewmodel
 
+import com.example.data.AutoBackupWriter
 import android.app.Application
 import android.os.Build
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -22,6 +23,12 @@ interface WorkoutPlatformHooks {
     fun cancelRestDoneNotification()
     fun shouldPromptNotificationPermission(): Boolean
     fun registerProcessStopObserver(onStop: () -> Unit): () -> Unit
+
+    /**
+     * Writes an automatic backup into the user's chosen folder. Returns true on success.
+     * Default does nothing, so test fakes don't need to implement it.
+     */
+    suspend fun writeAutoBackup(folderUri: String, fileName: String, content: String): Boolean = false
 }
 
 class AndroidWorkoutPlatformHooks(
@@ -60,6 +67,9 @@ class AndroidWorkoutPlatformHooks(
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !WorkoutForegroundService.hasNotificationPermission(application)
     }
+
+    override suspend fun writeAutoBackup(folderUri: String, fileName: String, content: String): Boolean =
+        AutoBackupWriter.write(application, folderUri, fileName, content)
 
     override fun registerProcessStopObserver(onStop: () -> Unit): () -> Unit {
         val observer = object : DefaultLifecycleObserver {

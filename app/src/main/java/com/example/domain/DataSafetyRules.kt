@@ -1,6 +1,8 @@
 package com.example.domain
 
 import com.example.data.SeedData
+import com.example.data.model.LoadType
+import java.util.Locale
 import com.example.data.model.AppSettings
 import com.example.data.model.CompletedExercise
 import com.example.data.model.CompletedSet
@@ -30,7 +32,8 @@ data class EditableCompletedExercise(
     val name: String,
     val targetSets: Int? = null,
     val repRange: String? = null,
-    val sets: List<EditableCompletedSet>
+    val sets: List<EditableCompletedSet>,
+    val loadType: LoadType = LoadType.STANDARD
 )
 
 data class HistoryWorkoutEditDraft(
@@ -58,6 +61,7 @@ object HistoryWorkoutEditRules {
                 name = ex.name,
                 targetSets = ex.targetSets,
                 repRange = ex.repRange,
+                loadType = ex.loadType,
                 sets = ex.sets.mapIndexed { setIdx, s ->
                     EditableCompletedSet(
                         id = "hs-$exIdx-$setIdx-${RepDayRules.newId("s")}",
@@ -169,7 +173,8 @@ object HistoryWorkoutEditRules {
                 name = normalizedName,
                 targetSets = ex.targetSets ?: mappedSets.size,
                 repRange = ex.repRange,
-                sets = mappedSets
+                sets = mappedSets,
+                loadType = ex.loadType
             )
         }
         if (cleanedExercises.isEmpty()) return null
@@ -194,7 +199,7 @@ object HistoryWorkoutEditRules {
         val newCompletedAtMs = if (timingChanged) draft.startedAtMs + newDurationSec * 1000L else origCompletedMs
         val newCompletedAtIso = if (timingChanged) RepDayRules.formatIso(newCompletedAtMs) else orig.completedAt
 
-        val recomputedVolume = RepDayRules.computeCompletedVolume(cleanedExercises)
+        val recomputedVolume = RepDayRules.computeCompletedVolume(cleanedExercises, orig.bodyWeight)
         val resolvedName = draft.routineName.trim().ifEmpty { orig.routineName }
 
         return orig.copy(
@@ -318,7 +323,7 @@ object RepDayBackupRules {
         }
         val hydratedHistory = parsed.history.filter { it.id.isNotBlank() }.map { w ->
             val compMs = w.completedAtMs.takeIf { it > 0L } ?: (RepDayRules.parseIsoToMillis(w.completedAt) ?: 0L)
-            val recomputedVol = if (w.totalVolume > 0) w.totalVolume else RepDayRules.computeCompletedVolume(w.exercises)
+            val recomputedVol = if (w.totalVolume > 0) w.totalVolume else RepDayRules.computeCompletedVolume(w.exercises, w.bodyWeight)
             if (w.completedAtMs == compMs && w.totalVolume == recomputedVol) w
             else w.copy(completedAtMs = compMs, totalVolume = recomputedVol)
         }
@@ -432,7 +437,8 @@ object RepDayBackupRules {
 
     fun exportHistoryToCsv(history: List<CompletedWorkout>): String {
         val sb = StringBuilder()
-        sb.appendLine("date,workout name,exercise,set number,tag,weight,unit,reps,RPE,RIR,notes")
+        // Columns after "notes" were added later; earlier columns keep their order for existing sheets.
+        sb.appendLine("date,workout name,exercise,set number,tag,weight,unit,reps,RPE,RIR,notes,weight type,effective load,volume,body weight")
         val ordered = history.sortedByDescending { it.completedAtMs }
         for (workout in ordered) {
             val notes = workout.notes.orEmpty()
@@ -445,6 +451,11 @@ object RepDayBackupRules {
                         val rir = (10.0 - RepDayRules.snapRpe(rpeVal)).coerceAtLeast(0.0)
                         RepDayRules.formatNumber(rir)
                     }.orEmpty()
+                    // Bodyweight/assisted sets need a recorded body weight to give a real load.
+                    val effective = if (LoadTypeRules.needsBodyWeight(exercise.loadType) && workout.bodyWeight == null) null
+                    else LoadTypeRules.effectiveLoad(set.weight, exercise.loadType, workout.bodyWeight)
+                    val effectiveStr = effective?.let { RepDayRules.formatNumber(RepDayRules.roundToTenth(it)) }.orEmpty()
+                    val volumeStr = effective?.let { RepDayRules.formatNumber(RepDayRules.roundToTenth(it * set.reps.coerceAtLeast(0))) }.orEmpty()
                     val row = listOf(
                         workout.completedAt,
                         workout.routineName,
@@ -456,7 +467,11 @@ object RepDayBackupRules {
                         set.reps.toString(),
                         rpeStr,
                         rirStr,
-                        notes
+                        notes,
+                        exercise.loadType.name.lowercase(Locale.US),
+                        effectiveStr,
+                        volumeStr,
+                        workout.bodyWeight?.let { RepDayRules.formatNumber(RepDayRules.roundToTenth(it)) }.orEmpty()
                     ).joinToString(",") { escapeCsvField(it) }
                     sb.appendLine(row)
                 }

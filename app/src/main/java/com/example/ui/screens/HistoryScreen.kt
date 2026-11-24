@@ -67,6 +67,7 @@ import com.example.data.model.CompletedWorkout
 import com.example.data.model.EffortScale
 import com.example.data.model.Routine
 import com.example.data.model.WeightUnit
+import com.example.domain.LoadTypeRules
 import com.example.domain.RepDayRules
 import com.example.ui.components.RepDayConfirmDialog
 import com.example.ui.components.SetTagBadge
@@ -870,7 +871,8 @@ private fun CompletedWorkoutCard(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 rowEx.forEach { ex ->
-                                    val rawExVol = ex.sets.sumOf { it.weight * it.reps }.roundToInt()
+                                    // Volume follows the weight type (per-hand ×2, bodyweight + added, ...)
+                                    val rawExVol = RepDayRules.computeCompletedVolume(listOf(ex), workout.bodyWeight)
                                     val exVol = RepDayRules.convertVolume(rawExVol, workout.unit, displayUnit)
                                     Column(
                                         modifier = Modifier
@@ -927,7 +929,7 @@ private fun CompletedWorkoutCard(
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
                                                     Text(
-                                                        text = "$approx$weightTxt ${displayUnit.label} × ${s.reps}",
+                                                        text = "$approx${LoadTypeRules.formatCompactWithUnit(weightTxt, s.weight, displayUnit, ex.loadType)} × ${s.reps}",
                                                         style = MonoTabularStyle.copy(
                                                             fontSize = 12.sp,
                                                             fontWeight = FontWeight.SemiBold,

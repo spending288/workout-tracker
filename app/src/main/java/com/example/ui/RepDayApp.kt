@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.AutoBackupWriter
 import com.example.data.model.ActiveWorkout
 import com.example.domain.BackupImportMode
 import com.example.domain.BackupValidationResult
@@ -188,6 +189,18 @@ fun RepDayApp(
         }
     }
 
+    // Folder picker for automatic backups. Access is kept across restarts.
+    val autoBackupFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (AutoBackupWriter.takeFolderAccess(context, uri)) {
+            viewModel.onAutoBackupFolderChosen(uri.toString())
+        } else {
+            viewModel.showToast("Couldn't get access to that folder. Try another one.")
+        }
+    }
+
     val importBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -219,6 +232,8 @@ fun RepDayApp(
                 ActiveWorkoutScreen(
                     workout = active,
                     lastSessionByExercise = state.lastSessionByExercise,
+                    history = state.history,
+                    exerciseUsage = state.exerciseUsage,
                     exerciseLibrary = state.exerciseLibrary,
                     customExercises = state.customExercises,
                     settings = state.settings,
@@ -249,7 +264,9 @@ fun RepDayApp(
                     onRemoveExercise = viewModel::removeExerciseFromActiveWorkout,
                     onUpdateNotes = viewModel::updateActiveWorkoutNotes,
                     onFinishWorkout = viewModel::finishActiveWorkout,
-                    onDiscardWorkout = viewModel::discardActiveWorkout
+                    onDiscardWorkout = viewModel::discardActiveWorkout,
+                    onSetLoadType = viewModel::setExerciseLoadType,
+                    onAnswerScreenOnPrompt = viewModel::answerScreenOnPrompt
                 )
             } else {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -470,7 +487,10 @@ fun RepDayApp(
                     exerciseLibrary = state.exerciseLibrary,
                     customExercises = state.customExercises,
                     onSave = { routine -> viewModel.saveRoutine(routine, req) },
-                    onDismiss = viewModel::closeRoutineEditor
+                    onDismiss = viewModel::closeRoutineEditor,
+                    exerciseUsage = state.exerciseUsage,
+                    loadTypes = state.settings.exerciseLoadTypes,
+                    onSetLoadType = viewModel::setExerciseLoadType
                 )
             }
 
@@ -511,7 +531,14 @@ fun RepDayApp(
                     },
                     onRestoreSampleRoutines = viewModel::loadSampleRoutinesAndPlan,
                     onEraseAllData = viewModel::eraseAllData,
-                    onDismiss = viewModel::closeSettings
+                    onDismiss = viewModel::closeSettings,
+                    onSetBodyWeight = viewModel::setBodyWeight,
+                    autoBackupFolderLabel = remember(state.settings.autoBackupFolderUri) {
+                        AutoBackupWriter.folderDisplayName(context, state.settings.autoBackupFolderUri)
+                    },
+                    onChooseAutoBackupFolder = { autoBackupFolderLauncher.launch(null) },
+                    onSetAutoBackupEnabled = viewModel::setAutoBackupEnabled,
+                    onBackupNow = viewModel::backUpNow
                 )
             }
 

@@ -57,6 +57,21 @@ enum class RoutineSortField(val label: String) {
     LAST_COMPLETED_AT("Last Done")
 }
 
+/**
+ * How to read the number in an exercise's weight box.
+ * - STANDARD: the total weight moved (barbell, machine, cable).
+ * - PER_HAND: weight of one dumbbell or kettlebell when using one in each hand. Volume counts it twice.
+ * - BODYWEIGHT: weight added on top of body weight (blank or 0 = body weight only).
+ * - ASSISTED: assistance that offsets body weight (assisted pull-up machine, bands).
+ */
+@JsonClass(generateAdapter = false)
+enum class LoadType(val label: String, val description: String) {
+    STANDARD("Total weight", "Barbell, machine or cable: log the total weight"),
+    PER_HAND("Per hand", "One weight in each hand: log one dumbbell, volume counts both"),
+    BODYWEIGHT("Bodyweight", "Log added weight only; leave blank for body weight"),
+    ASSISTED("Assisted", "Log the assistance; it's subtracted from body weight")
+}
+
 @JsonClass(generateAdapter = false)
 enum class SortDirection {
     ASC,
@@ -150,7 +165,9 @@ data class CompletedExercise(
     val name: String,
     val targetSets: Int? = null,
     val repRange: String? = null,
-    val sets: List<CompletedSet>
+    val sets: List<CompletedSet>,
+    // How the weights were logged. Older history has no value, which means STANDARD (as typed).
+    val loadType: LoadType = LoadType.STANDARD
 )
 
 @JsonClass(generateAdapter = true)
@@ -165,7 +182,9 @@ data class CompletedWorkout(
     val unit: WeightUnit,
     val exercises: List<CompletedExercise>,
     val notes: String? = null,
-    val completedAtMs: Long = 0L
+    val completedAtMs: Long = 0L,
+    // Body weight at the time, in this workout's unit. Used for bodyweight/assisted volume.
+    val bodyWeight: Double? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -248,10 +267,20 @@ data class AppSettings(
     val defaultRestSeconds: Int = 90,
     val soundEnabled: Boolean = true,
     val vibrateOnRestEnd: Boolean = true,
-    val keepScreenOnDuringWorkout: Boolean = false,
+    // On by default for new installs. Existing users who had it off are asked once (screenOnPromptShown).
+    val keepScreenOnDuringWorkout: Boolean = true,
     val effortScale: EffortScale = EffortScale.RPE,
     val askEffortAfterSet: Boolean = true,
     val theme: ThemeConfig = ThemeConfig(),
     val plateCalculator: PlateCalculatorSettings = PlateCalculatorSettings(),
-    val routineSort: RoutineSortConfig = RoutineSortConfig()
+    val routineSort: RoutineSortConfig = RoutineSortConfig(),
+    val screenOnPromptShown: Boolean = false,
+    // Weight type per exercise, keyed by RepDayRules.exerciseKey(name). Missing = guessed from the name.
+    val exerciseLoadTypes: Map<String, LoadType> = emptyMap(),
+    // Stored in kg; shown in the user's unit. Needed for bodyweight and assisted volume.
+    val bodyWeightKg: Double? = null,
+    val autoBackupEnabled: Boolean = false,
+    // Folder chosen with the system picker (a content:// tree URI with persisted permission).
+    val autoBackupFolderUri: String? = null,
+    val lastAutoBackupMs: Long = 0L
 )
