@@ -134,6 +134,30 @@ class ActiveWorkoutViewModelTest {
     }
 
     @Test
+    fun completingSet_promptsForEffortOnlyWhenNoneChosenYet() = runTest(testDispatcher) {
+        val repo = FakeRepDayDataSource(initialActiveWorkout = sampleActiveWorkout())
+        val vm = createViewModel(repo = repo)
+        val collector = backgroundScope.launch(testDispatcher) { vm.uiState.collect {} }
+        advanceUntilIdle()
+
+        // Set 1: effort picked in the set row first, then completed -> no "How hard?" bar
+        vm.setActiveSetRpe("ex_bench", "s1", 8.0)
+        vm.toggleSetCompleted("ex_bench", "s1", CompletedSet(185.0, 8))
+        runCurrent()
+        assertNull(vm.uiState.value.pendingEffortPrompt)
+        assertEquals(8.0, vm.activeWorkout.value!!.exercises[0].sets[0].rpe!!, 0.001)
+
+        // Set 2: no effort chosen -> the bar appears for set 2
+        vm.toggleSetCompleted("ex_bench", "s2", CompletedSet(185.0, 8))
+        runCurrent()
+        val prompt = vm.uiState.value.pendingEffortPrompt
+        assertNotNull(prompt)
+        assertEquals("s2", prompt!!.setId)
+
+        collector.cancel()
+    }
+
+    @Test
     fun rapidBurstOfAddSetFillPreviousToggleDoneAndNotes_losesNothingAndDebouncesPersistence() = runTest(testDispatcher) {
         val repo = FakeRepDayDataSource(
             initialActiveWorkout = sampleActiveWorkout(),
