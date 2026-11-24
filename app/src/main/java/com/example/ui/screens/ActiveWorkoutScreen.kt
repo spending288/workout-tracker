@@ -99,6 +99,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -179,6 +181,14 @@ fun ActiveWorkoutScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    // Close the keyboard when a set is marked done or an effort value is picked, so it doesn't
+    // stay open over the list once typing is finished.
+    fun dismissKeyboard() {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+    }
     val isLiveWorkout = workout.routineId == null
     val sessionUnit = workout.resolvedUnit(settings.unit)
     val activity = remember(context) { context.findActivity() }
@@ -628,6 +638,7 @@ fun ActiveWorkoutScreen(
                                 onSwap = { swapTargetExercise = exercise },
                                 onCycleRest = { onCycleExerciseRest(exercise.id) },
                                 onEditSetOptions = { setIdx, set ->
+                                    dismissKeyboard()
                                     setEditTarget = SetEditTarget(
                                         exerciseId = exercise.id,
                                         exerciseName = exercise.name,
@@ -637,11 +648,15 @@ fun ActiveWorkoutScreen(
                                         exerciseDefaultRest = exercise.restSeconds ?: settings.defaultRestSeconds
                                     )
                                 },
-                                onSetRpe = { setId, rpe -> onSetRpe(exercise.id, setId, rpe, false) },
+                                onSetRpe = { setId, rpe ->
+                                    dismissKeyboard()
+                                    onSetRpe(exercise.id, setId, rpe, false)
+                                },
                                 onFillFromPrev = { setId, w, r -> onFillFromPrev(exercise.id, setId, w, r) },
                                 onUpdateWeight = { setId, w -> onUpdateWeight(exercise.id, setId, w) },
                                 onUpdateReps = { setId, r -> onUpdateReps(exercise.id, setId, r) },
                                 onToggleDone = { setId, prevSet, prevUnit ->
+                                    dismissKeyboard()
                                     val justCompletedExercise = onToggleSetDone(exercise.id, setId, prevSet, prevUnit)
                                     if (justCompletedExercise) {
                                         expandedExercises[exercise.id] = false
@@ -805,7 +820,10 @@ fun ActiveWorkoutScreen(
             onSelectPreset = onSelectRestPreset,
             onAdjust = onAdjustRest,
             onDismiss = onDismissRest,
-            onSelectEffort = { exId, setId, rpe -> onSetRpe(exId, setId, rpe, true) },
+            onSelectEffort = { exId, setId, rpe ->
+                dismissKeyboard()
+                onSetRpe(exId, setId, rpe, true)
+            },
             onDismissEffortPrompt = onDismissEffortPrompt
         )
     }
@@ -1098,6 +1116,7 @@ private fun ActiveExerciseCard(
     )
     val exRest = exercise.restSeconds ?: settings.defaultRestSeconds
     var openEffortSetId by remember(exercise.id) { mutableStateOf<String?>(null) }
+    val cardFocusManager = LocalFocusManager.current
 
     val prevConverted = prevSession != null && prevSession.unit != sessionUnit
     val prevApprox = if (prevConverted) "≈" else ""
@@ -1427,6 +1446,8 @@ private fun ActiveExerciseCard(
                                             RoundedCornerShape(10.dp)
                                         )
                                         .clickable {
+                                            // Close the keyboard so the effort chips aren't hidden behind it.
+                                            cardFocusManager.clearFocus()
                                             openEffortSetId = if (isEffortOpen) null else set.id
                                         }
                                         .testTag("set_rpe_${set.id}"),
@@ -1521,16 +1542,12 @@ private fun ActiveExerciseCard(
                             // Quiet Unboxed Set Caption
                             val captionParts = ArrayList<String>()
                             RepDayRules.tagFullLabel(set.tag, set.workingSubTag)?.let { captionParts.add(it) }
-                            val isRpeOnly = set.targetRepRange.isNullOrBlank() && !set.targetRpe.isNullOrBlank()
-                            if (!set.targetRepRange.isNullOrBlank() && set.targetRepRange != exercise.repRange) {
-                                captionParts.add("Target ${set.targetRepRange} reps")
-                            }
-                            if (!set.targetRpe.isNullOrBlank()) {
-                                val targetStr = RepDayRules.formatEffortTarget(set.targetRpe, settings.effortScale)
-                                if (targetStr != null) {
-                                    captionParts.add(if (isRpeOnly) "Lift to $targetStr" else "Target $targetStr")
-                                }
-                            }
+                            RepDayRules.formatActiveSetTargetCaption(
+                                setRepRange = set.targetRepRange,
+                                setTargetRpe = set.targetRpe,
+                                exerciseRepRange = exercise.repRange,
+                                scale = settings.effortScale
+                            )?.let { captionParts.add(it) }
                             if (set.rpe != null) {
                                 captionParts.add("Logged ${RepDayRules.formatEffortValue(set.rpe, settings.effortScale)}")
                             }

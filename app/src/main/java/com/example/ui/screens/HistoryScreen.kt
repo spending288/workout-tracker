@@ -445,8 +445,9 @@ fun HistoryScreen(
                 }
             }
         } else {
-            itemsIndexed(filteredHistory, key = { _, w -> w.id }) { index, workout ->
-                val isExpanded = expandedMap[workout.id] ?: (index == 0)
+            itemsIndexed(filteredHistory, key = { _, w -> w.id }) { _, workout ->
+                // Set-by-set breakdown starts collapsed; it only opens when tapped.
+                val isExpanded = expandedMap[workout.id] ?: false
                 val hasSavedRoutine = remember(workout, routines) {
                     routines.any { RepDayRules.matchesRoutineHistory(workout, it) }
                 }

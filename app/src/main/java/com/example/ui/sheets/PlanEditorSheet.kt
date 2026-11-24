@@ -1,6 +1,5 @@
 package com.example.ui.sheets
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -73,6 +72,8 @@ import com.example.data.model.TrainingPlan
 import com.example.domain.RepDayRules
 import com.example.ui.components.RepDayConfirmDialog
 import com.example.ui.components.StepperIconButton
+import com.example.ui.components.EditorSheetBackHandler
+import com.example.ui.components.editorSheetProperties
 import com.example.ui.theme.LocalRepDayColors
 import com.example.ui.theme.MonoTabularStyle
 import com.example.ui.viewmodel.PlanEditorRequest
@@ -129,8 +130,12 @@ fun PlanEditorSheet(
     val initialSig = remember(request) { snapshotSig(name, description, useBlocks, blocks) }
     val isDirty = request.isDuplicateDraft || snapshotSig(name, description, useBlocks, blocks) != initialSig
 
+    // Read through remembered state so even an older copy of this function (which the bottom
+    // sheet can hold on to) sees the current unsaved-changes status.
+    val latestIsDirtyForClose = rememberUpdatedState(isDirty)
+    val latestOnDismiss = rememberUpdatedState(onDismiss)
     fun attemptClose() {
-        if (isDirty) showDiscardDialog = true else onDismiss()
+        if (latestIsDirtyForClose.value) showDiscardDialog = true else latestOnDismiss.value()
     }
 
     val latestIsDirty = rememberUpdatedState(isDirty)
@@ -225,11 +230,12 @@ fun PlanEditorSheet(
     ModalBottomSheet(
         onDismissRequest = { attemptClose() },
         sheetState = sheetState,
+        properties = editorSheetProperties(),
         containerColor = colors.surface,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = null
     ) {
-        BackHandler { attemptClose() }
+        EditorSheetBackHandler(onCloseRequest = { attemptClose() })
 
         Column(
             modifier = Modifier
