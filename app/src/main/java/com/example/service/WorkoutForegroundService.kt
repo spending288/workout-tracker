@@ -51,10 +51,16 @@ class WorkoutForegroundService : Service() {
     private var latestRest: RestTimerSnapshot = RestTimerSnapshot()
     private var latestSettings: AppSettings = AppSettings()
     private var activeScheduledEndTimeMs: Long? = null
-    private var hasReceivedInitialEmission: Boolean = false
+
+    // Lifecycle guard: the service can start a moment before the new workout is written to
+    // DataStore, so an early empty read must not stop it. See RestTimerRules.shouldStopWorkoutService.
+    private var sawNonNullWorkout: Boolean = false
+    private var serviceStartMs: Long = 0L
+    private var startupCheckJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
+        serviceStartMs = System.currentTimeMillis()
         dataStore = RepDayDataStore(applicationContext)
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureNotificationChannels()
@@ -102,6 +108,7 @@ class WorkoutForegroundService : Service() {
         releaseWakeLock()
         cancelRestDoneNotification()
         countdownJob?.cancel()
+        startupCheckJob?.cancel()
         observerJob?.cancel()
         serviceScope.cancel()
         super.onDestroy()
@@ -109,6 +116,19 @@ class WorkoutForegroundService : Service() {
 
     private fun startObservingStateIfNeeded() {
         if (observerJob != null) return
+        // If no workout shows up within the startup grace window, stop (e.g. a sticky restart
+        // after the workout was already finished or discarded).
+        startupCheckJob = serviceScope.launch {
+            delay(RestTimerRules.SERVICE_STARTUP_GRACE_MS)
+            if (RestTimerRules.shouldStopWorkoutService(
+                    sawNonNullWorkout = sawNonNullWorkout,
+                    hasActiveWorkout = latestWorkout != null,
+                    elapsedSinceStartMs = System.currentTimeMillis() - serviceStartMs
+                )
+            ) {
+                stopWorkoutService()
+            }
+        }
         observerJob = serviceScope.launch {
             combine(
                 dataStore.activeWorkoutFlow,
@@ -117,13 +137,24 @@ class WorkoutForegroundService : Service() {
             ) { workout, rest, settings ->
                 Triple(workout, rest, settings)
             }.collect { (workout, rest, settings) ->
-                hasReceivedInitialEmission = true
                 latestWorkout = workout
                 latestRest = rest
                 latestSettings = settings
+                if (workout != null) {
+                    sawNonNullWorkout = true
+                }
 
                 if (workout == null) {
-                    stopWorkoutService()
+                    // Stop only once a workout has been seen and then cleared, or after the
+                    // startup grace window. An early empty read is normal right after start.
+                    if (RestTimerRules.shouldStopWorkoutService(
+                            sawNonNullWorkout = sawNonNullWorkout,
+                            hasActiveWorkout = false,
+                            elapsedSinceStartMs = System.currentTimeMillis() - serviceStartMs
+                        )
+                    ) {
+                        stopWorkoutService()
+                    }
                     return@collect
                 }
 
@@ -479,7 +510,9 @@ class WorkoutForegroundService : Service() {
         }
 
         fun startOrSync(context: Context) {
-            if (!hasNotificationPermission(context)) return
+            // No POST_NOTIFICATIONS check here on purpose: a foreground service still runs
+            // without it (its notification just isn't shown in the drawer), so the wake lock,
+            // chime and vibration keep working. Visible notifications check permission themselves.
             val intent = Intent(context, WorkoutForegroundService::class.java).apply {
                 action = ACTION_START_OR_SYNC
             }

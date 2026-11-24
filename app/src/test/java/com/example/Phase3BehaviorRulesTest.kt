@@ -320,7 +320,8 @@ class Phase3BehaviorRulesTest {
         assertEquals(WorkingSubTag.BACKOFF, replacement.sets[0].workingSubTag)
         assertEquals("6-8", replacement.sets[0].targetRepRange)
         assertEquals("8", replacement.sets[0].targetRpe)
-        assertEquals(150, replacement.sets[0].restSeconds)
+        // s3 is followed by a DROP set, so its rest is 0 (drop sets start right away).
+        assertEquals(0, replacement.sets[0].restSeconds)
         assertEquals(SetTag.DROP, replacement.sets[1].tag)
         assertEquals("10-12", replacement.sets[1].targetRepRange)
         assertEquals("9", replacement.sets[1].targetRpe)
@@ -425,7 +426,8 @@ class Phase3BehaviorRulesTest {
 
     @Test
     fun formatSetTargetLabelAndSummary_respectEffortScale() {
-        assertEquals("8-10 @RPE 8", RepDayRules.formatSetTargetLabel("8-10", "8", EffortScale.RPE))
+        // RPE mode uses the compact "@8" style, matching the exercise summary ("3 × 8-10 @8-9").
+        assertEquals("8-10 @8", RepDayRules.formatSetTargetLabel("8-10", "8", EffortScale.RPE))
         assertEquals("8-10 · 2 RIR", RepDayRules.formatSetTargetLabel("8-10", "8", EffortScale.RIR))
         assertEquals("3 × 8-10 · 1–2 RIR", RepDayRules.formatExerciseTargetSummary(3, "8-10", "8-9", EffortScale.RIR))
         assertEquals("3 × 8-10 @8-9", RepDayRules.formatExerciseTargetSummary(3, "8-10", "8-9", EffortScale.RPE))

@@ -125,7 +125,8 @@ fun HistoryWorkoutEditorSheet(
         HistoryWorkoutEditRules.snapshotSignature(draft)
     }
     val isDirty = HistoryWorkoutEditRules.isDirty(draft, initialSignature)
-    val canSave = HistoryWorkoutEditRules.canSave(draft)
+    val saveBlockedReason = HistoryWorkoutEditRules.validationError(draft)
+    val canSave = saveBlockedReason == null
 
     var showDiscardDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -585,6 +586,18 @@ fun HistoryWorkoutEditorSheet(
 
             // Sticky Footer
             HorizontalDivider(color = colors.border)
+            // Say why Save is disabled. The empty-exercises case already has a banner in the list.
+            if (saveBlockedReason != null && draft.exercises.isNotEmpty()) {
+                Text(
+                    text = saveBlockedReason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.danger,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 10.dp)
+                        .testTag("history_editor_save_blocked_reason")
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
